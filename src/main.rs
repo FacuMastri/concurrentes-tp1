@@ -20,7 +20,14 @@ fn main() {
                 let milk_order = 20;
                 let water_order = 30;
 
-                make_coffee(i, &ground_coffee_beans_clone, &milk_foam_clone, coffee_order, milk_order, water_order);
+                make_coffee(
+                    i,
+                    &ground_coffee_beans_clone,
+                    &milk_foam_clone,
+                    coffee_order,
+                    milk_order,
+                    water_order,
+                );
             })
         })
         .collect();
@@ -31,7 +38,14 @@ fn main() {
         .collect();
 }
 
-fn make_coffee(n_dispenser: usize, ground_coffee_beans_clone: &Arc<Mutex<u64>>, milk_foam_clone: &Arc<Mutex<u64>>, coffee_order: u64, milk_order: u64, water_order: u64) {
+fn make_coffee(
+    n_dispenser: usize,
+    ground_coffee_beans_clone: &Arc<Mutex<u64>>,
+    milk_foam_clone: &Arc<Mutex<u64>>,
+    coffee_order: u64,
+    milk_order: u64,
+    water_order: u64,
+) {
     {
         let mut ground_coffee_beans = ground_coffee_beans_clone.lock().unwrap();
         println!(
@@ -40,14 +54,23 @@ fn make_coffee(n_dispenser: usize, ground_coffee_beans_clone: &Arc<Mutex<u64>>, 
         );
         thread::sleep(Duration::from_millis(100 * coffee_order));
         *ground_coffee_beans -= coffee_order;
-        println!("Dispenser {}: Terminó de aplicar granos de café", n_dispenser);
+        println!(
+            "Dispenser {}: Terminó de aplicar granos de café",
+            n_dispenser
+        );
     }
 
     {
         let mut milk_foam = milk_foam_clone.lock().unwrap();
-        println!("Dispenser {}: Aplicando leche espumada: {}", n_dispenser, milk_order);
+        println!(
+            "Dispenser {}: Aplicando leche espumada: {}",
+            n_dispenser, milk_order
+        );
         thread::sleep(Duration::from_millis(100 * milk_order));
-        println!("Dispenser {}: Terminó de aplicar leche espumada", n_dispenser);
+        println!(
+            "Dispenser {}: Terminó de aplicar leche espumada",
+            n_dispenser
+        );
         *milk_foam -= milk_order;
     }
 
