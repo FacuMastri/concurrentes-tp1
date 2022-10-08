@@ -15,6 +15,14 @@ impl CoffeeBeansToGrindContainer {
         self.beans -= amount;
         self.amount_used += amount;
     }
+
+    pub fn get_amount_used(&self) -> &u64 {
+        &self.amount_used
+    }
+
+    pub fn get_beans(&self) -> &u64 {
+        &self.beans
+    }
 }
 
 pub struct GroundCoffeeBeansContainer {
@@ -50,6 +58,14 @@ impl GroundCoffeeBeansContainer {
     pub fn get_coffee_beans(&self) -> &u64 {
         &self.beans
     }
+
+    pub fn get_amount_used(&self) -> &u64 {
+        &self.amount_used
+    }
+
+    pub fn get_beans(&self) -> &u64 {
+        &self.beans
+    }
 }
 
 pub struct ColdMilkContainer {
@@ -68,6 +84,14 @@ impl ColdMilkContainer {
     pub fn subtract(&mut self, amount: &u64) {
         self.milk -= amount;
         self.amount_used += amount;
+    }
+
+    pub fn get_amount_used(&self) -> &u64 {
+        &self.amount_used
+    }
+
+    pub fn get_milk(&self) -> &u64 {
+        &self.milk
     }
 }
 
@@ -103,5 +127,9 @@ impl MilkFoamContainer {
 
     pub fn get_milk(&self) -> &u64 {
         &self.milk
+    }
+
+    pub fn get_amount_used(&self) -> &u64 {
+        &self.amount_used
     }
 }
