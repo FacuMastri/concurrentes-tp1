@@ -3,18 +3,16 @@ mod containers;
 mod order;
 
 use crate::constants::{COFFEE_BEANS_ALERT_THRESHOLD, MILK_FOAM_ALERT_THRESHOLD};
-use constants::{
-    INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK, INITIAL_GROUND_COFFEE_BEANS,
-    INITIAL_MILK_FOAM, MAX_DISPENSERS, RESOURCE_ALERT_FACTOR,
-};
+use constants::{BASE_TIME_RESOURCE_APPLICATION, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK, INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, RESOURCE_ALERT_FACTOR};
 use rand::prelude::*;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
+use crate::containers::CoffeeBeansToGrindContainer;
 
 fn main() {
-    let coffee_beans_to_grind_container = Arc::new(Mutex::new(INITIAL_COFFEE_BEANS_TO_GRIND));
+    let coffee_beans_to_grind_container = Arc::new(Mutex::new(CoffeeBeansToGrindContainer::new(INITIAL_COFFEE_BEANS_TO_GRIND)));
     let cold_milk_container = Arc::new(Mutex::new(INITIAL_COLD_MILK));
 
     let ground_coffee_beans_container =
@@ -42,7 +40,7 @@ fn main() {
                         "[Dispenser {}] Aplicando granos de café: {}",
                         i, coffee_order
                     );
-                    thread::sleep(Duration::from_millis((100 * coffee_order) as u64));
+                    thread::sleep(Duration::from_millis((BASE_TIME_RESOURCE_APPLICATION * coffee_order) as u64));
                     *ground_coffee_beans -= coffee_order;
                     println!(
                         "[Dispenser {}] Terminó de aplicar granos de café",
@@ -57,7 +55,7 @@ fn main() {
                         milk_order > milk_foam
                     }).unwrap();
                     println!("[Dispenser {}] Aplicando leche espumada: {}", i, milk_order);
-                    thread::sleep(Duration::from_millis((100 * milk_order) as u64));
+                    thread::sleep(Duration::from_millis((BASE_TIME_RESOURCE_APPLICATION * milk_order) as u64));
                     *milk_foam -= milk_order;
                     println!("[Dispenser {}] Terminó de aplicar leche", i);
                     cvar.notify_all();
@@ -65,7 +63,7 @@ fn main() {
 
                 if water_order > 0 {
                     println!("[Dispenser {}] Aplicando agua", i);
-                    thread::sleep(Duration::from_millis((100 * water_order) as u64));
+                    thread::sleep(Duration::from_millis((BASE_TIME_RESOURCE_APPLICATION * water_order) as u64));
                     println!("[Dispenser {}] Terminó de aplicar agua", i);
                 }
 
@@ -89,7 +87,7 @@ fn main() {
             "[Refill de leche espumada] Convirtiendo {} de leche a leche espumada",
             value_to_refill
         );
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(BASE_TIME_RESOURCE_APPLICATION * value_to_refill));
         let mut cold_milk = cold_milk_clone.lock().unwrap();
         *cold_milk -= value_to_refill;
         *milk_foam += value_to_refill;
@@ -110,9 +108,9 @@ fn main() {
             "[Refill de café] Convirtiendo {} de granos para moler a granos molidos",
             value_to_refill
         );
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(1000 * value_to_refill));
         let mut coffee_beans_to_grind = coffee_beans_to_grind_container.lock().unwrap();
-        *coffee_beans_to_grind -= value_to_refill;
+        coffee_beans_to_grind.grind(&value_to_refill);
         *ground_coffee_beans += value_to_refill;
         println!("[Refill de café] Terminó de convertir granos de café");
         cvar.notify_all();
