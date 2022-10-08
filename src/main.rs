@@ -8,10 +8,7 @@ use crate::constants::{
 use crate::containers::{
     CoffeeBeansToGrindContainer, ColdMilkContainer, GroundCoffeeBeansContainer, MilkFoamContainer,
 };
-use constants::{
-    BASE_TIME_RESOURCE_APPLICATION, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK,
-    INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, RESOURCE_ALERT_FACTOR,
-};
+use constants::{BASE_TIME_RESOURCE_APPLICATION, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK, INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, RESOURCE_ALERT_FACTOR, STATS_TIME};
 use rand::prelude::*;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
@@ -79,53 +76,7 @@ fn main() {
     let cold_milk_container_clone = cold_milk_container.clone();
     let milk_foam_container_clone = milk_foam_container.clone();
 
-    #[allow(clippy::format_push_string)]
-    let inform_system = thread::spawn(move || loop {
-        let mut output = String::from("[Estadísticas] ");
-        {
-            let total_drinks = total_drinks_prepared_clone.lock().unwrap();
-            output.push_str(&format!(
-                "Total de bebidas preparadas: {} || ",
-                total_drinks
-            ));
-        }
-        {
-            let (lock, _cvar) = &*ground_coffee_beans_container_clone;
-            let ground_coffee_beans = lock.lock().unwrap();
-            output.push_str(&format!(
-                "Café molido actualmente: {} - Consumido: {} || ",
-                ground_coffee_beans.get_coffee_beans(),
-                ground_coffee_beans.get_amount_used()
-            ));
-        }
-        {
-            let coffee_beans_to_grind = coffee_beans_to_grind_container_clone.lock().unwrap();
-            output.push_str(&format!(
-                "Café en grano actualmente: {} - Consumido: {} || ",
-                coffee_beans_to_grind.get_beans(),
-                coffee_beans_to_grind.get_amount_used()
-            ));
-        }
-        {
-            let cold_milk = cold_milk_container_clone.lock().unwrap();
-            output.push_str(&format!(
-                "Leche fría actualmente: {} - Consumida: {} || ",
-                cold_milk.get_milk(),
-                cold_milk.get_amount_used()
-            ));
-        }
-        {
-            let (lock, _cvar) = &*milk_foam_container_clone;
-            let milk_foam = lock.lock().unwrap();
-            output.push_str(&format!(
-                "Leche espumada actualmente: {} - Consumida: {} ",
-                milk_foam.get_milk(),
-                milk_foam.get_amount_used()
-            ));
-        }
-        println!("{}", output);
-        thread::sleep(Duration::from_secs(5));
-    });
+    let inform_system = thread::spawn(move || inform_stats(total_drinks_prepared_clone, ground_coffee_beans_container_clone, coffee_beans_to_grind_container_clone, cold_milk_container_clone, milk_foam_container_clone));
 
     coffee_refill.join().unwrap();
     milk_refill.join().unwrap();
@@ -137,6 +88,56 @@ fn main() {
         .into_iter()
         .flat_map(|dispenser| dispenser.join())
         .collect();
+}
+
+#[allow(clippy::format_push_string)]
+fn inform_stats(total_drinks_prepared: Arc<Mutex<i32>>, ground_coffee_beans_container: Arc<(Mutex<GroundCoffeeBeansContainer>, Condvar)>, coffee_beans_to_grind_container: Arc<Mutex<CoffeeBeansToGrindContainer>>, cold_milk_container: Arc<Mutex<ColdMilkContainer>>, milk_foam_container: Arc<(Mutex<MilkFoamContainer>, Condvar)>) -> ! {
+    loop {
+        let mut report = String::from("[Estadísticas] ");
+        {
+            let total_drinks = total_drinks_prepared.lock().unwrap();
+            report.push_str(&format!(
+                "Total de bebidas preparadas: {} || ",
+                total_drinks
+            ));
+        }
+        {
+            let (lock, _cvar) = &*ground_coffee_beans_container;
+            let ground_coffee_beans = lock.lock().unwrap();
+            report.push_str(&format!(
+                "Café molido actualmente: {} - Consumido: {} || ",
+                ground_coffee_beans.get_coffee_beans(),
+                ground_coffee_beans.get_amount_used()
+            ));
+        }
+        {
+            let coffee_beans_to_grind = coffee_beans_to_grind_container.lock().unwrap();
+            report.push_str(&format!(
+                "Café en grano actualmente: {} - Consumido: {} || ",
+                coffee_beans_to_grind.get_beans(),
+                coffee_beans_to_grind.get_amount_used()
+            ));
+        }
+        {
+            let cold_milk = cold_milk_container.lock().unwrap();
+            report.push_str(&format!(
+                "Leche fría actualmente: {} - Consumida: {} || ",
+                cold_milk.get_milk(),
+                cold_milk.get_amount_used()
+            ));
+        }
+        {
+            let (lock, _cvar) = &*milk_foam_container;
+            let milk_foam = lock.lock().unwrap();
+            report.push_str(&format!(
+                "Leche espumada actualmente: {} - Consumida: {} ",
+                milk_foam.get_milk(),
+                milk_foam.get_amount_used()
+            ));
+        }
+        println!("{}", report);
+        thread::sleep(Duration::from_secs(STATS_TIME));
+    }
 }
 
 fn inform_about_milk_foam(milk_foam_container_clone: Arc<(Mutex<MilkFoamContainer>, Condvar)>) {
