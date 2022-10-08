@@ -15,12 +15,11 @@ impl CoffeeBeansToGrindContainer {
     pub fn increase_amount_used(&mut self, amount: u64) {
         self.amount_used += amount;
     }
-
 }
 
 struct GroundCoffeeBeansContainer {
     beans: u64,
-    amount_used: u64
+    amount_used: u64,
 }
 
 impl GroundCoffeeBeansContainer {
@@ -39,12 +38,11 @@ impl GroundCoffeeBeansContainer {
     pub fn increase_amount_used(&mut self, amount: u64) {
         self.amount_used += amount;
     }
-
 }
 
 struct ColdMilkContainer {
     milk: u64,
-    amount_used: u64
+    amount_used: u64,
 }
 
 impl ColdMilkContainer {
@@ -67,7 +65,7 @@ impl ColdMilkContainer {
 
 struct MilkFoamContainer {
     milk: u64,
-    amount_used: u64
+    amount_used: u64,
 }
 
 impl MilkFoamContainer {
