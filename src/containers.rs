@@ -36,9 +36,6 @@ impl GroundCoffeeBeansContainer {
 
     pub fn subtract(&mut self, amount: &u64) {
         self.beans -= amount;
-    }
-
-    pub fn increase_amount_used(&mut self, amount: u64) {
         self.amount_used += amount;
     }
 
@@ -68,15 +65,8 @@ impl ColdMilkContainer {
         }
     }
 
-    pub fn add(&mut self, amount: u64) {
-        self.milk += amount;
-    }
-
     pub fn subtract(&mut self, amount: &u64) {
         self.milk -= amount;
-    }
-
-    pub fn increase_amount_used(&mut self, amount: u64) {
         self.amount_used += amount;
     }
 }
@@ -100,9 +90,6 @@ impl MilkFoamContainer {
 
     pub fn subtract(&mut self, amount: &u64) {
         self.milk -= amount;
-    }
-
-    pub fn increase_amount_used(&mut self, amount: u64) {
         self.amount_used += amount;
     }
 
