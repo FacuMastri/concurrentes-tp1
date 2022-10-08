@@ -1,6 +1,7 @@
 mod constants;
 mod containers;
 mod order;
+mod blocking_queue;
 
 use crate::constants::{
     BASE_TIME_RESOURCE_REFILL, COFFEE_BEANS_ALERT_THRESHOLD, MILK_FOAM_ALERT_THRESHOLD,
@@ -8,7 +9,11 @@ use crate::constants::{
 use crate::containers::{
     CoffeeBeansToGrindContainer, ColdMilkContainer, GroundCoffeeBeansContainer, MilkFoamContainer,
 };
-use constants::{BASE_TIME_RESOURCE_APPLICATION, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK, INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, RESOURCE_ALERT_FACTOR, STATS_TIME};
+use constants::{
+    BASE_TIME_RESOURCE_APPLICATION, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK,
+    INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, RESOURCE_ALERT_FACTOR,
+    STATS_TIME,
+};
 use rand::prelude::*;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
@@ -39,6 +44,7 @@ fn main() {
             let milk_foam_clone = milk_foam_container.clone();
             let total_drinks_prepared_clone = total_drinks_prepared.clone();
             thread::spawn(move || {
+                // TODO, una vez tomado el lock, verificar que haya suficiente de algo para poder hacerlo (sacamos el wait_while), si no hay, obtener el otro container y fabricar lo necesario pero con un factor de carga
                 make_drink(
                     i,
                     ground_coffee_beans_clone,
@@ -76,7 +82,15 @@ fn main() {
     let cold_milk_container_clone = cold_milk_container.clone();
     let milk_foam_container_clone = milk_foam_container.clone();
 
-    let inform_system = thread::spawn(move || inform_stats(total_drinks_prepared_clone, ground_coffee_beans_container_clone, coffee_beans_to_grind_container_clone, cold_milk_container_clone, milk_foam_container_clone));
+    let inform_system = thread::spawn(move || {
+        inform_stats(
+            total_drinks_prepared_clone,
+            ground_coffee_beans_container_clone,
+            coffee_beans_to_grind_container_clone,
+            cold_milk_container_clone,
+            milk_foam_container_clone,
+        )
+    });
 
     coffee_refill.join().unwrap();
     milk_refill.join().unwrap();
@@ -91,7 +105,13 @@ fn main() {
 }
 
 #[allow(clippy::format_push_string)]
-fn inform_stats(total_drinks_prepared: Arc<Mutex<i32>>, ground_coffee_beans_container: Arc<(Mutex<GroundCoffeeBeansContainer>, Condvar)>, coffee_beans_to_grind_container: Arc<Mutex<CoffeeBeansToGrindContainer>>, cold_milk_container: Arc<Mutex<ColdMilkContainer>>, milk_foam_container: Arc<(Mutex<MilkFoamContainer>, Condvar)>) -> ! {
+fn inform_stats(
+    total_drinks_prepared: Arc<Mutex<i32>>,
+    ground_coffee_beans_container: Arc<(Mutex<GroundCoffeeBeansContainer>, Condvar)>,
+    coffee_beans_to_grind_container: Arc<Mutex<CoffeeBeansToGrindContainer>>,
+    cold_milk_container: Arc<Mutex<ColdMilkContainer>>,
+    milk_foam_container: Arc<(Mutex<MilkFoamContainer>, Condvar)>,
+) -> ! {
     loop {
         let mut report = String::from("[Estadísticas] ");
         {
