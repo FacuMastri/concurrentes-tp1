@@ -2,7 +2,9 @@ mod constants;
 mod containers;
 mod order;
 
-use crate::constants::{COFFEE_BEANS_ALERT_THRESHOLD, MILK_FOAM_ALERT_THRESHOLD};
+use crate::constants::{
+    BASE_TIME_RESOURCE_REFILL, COFFEE_BEANS_ALERT_THRESHOLD, MILK_FOAM_ALERT_THRESHOLD,
+};
 use crate::containers::{
     CoffeeBeansToGrindContainer, ColdMilkContainer, GroundCoffeeBeansContainer, MilkFoamContainer,
 };
@@ -188,7 +190,9 @@ fn transform_coffee(
             value_to_refill
         );
         let coffee_beans_to_grind = coffee_beans_to_grind_container_clone.lock().unwrap();
-        thread::sleep(Duration::from_millis(1000 * value_to_refill));
+        thread::sleep(Duration::from_millis(
+            BASE_TIME_RESOURCE_REFILL * value_to_refill,
+        ));
         convert_coffee_beans_to_ground_beans(
             ground_coffee_beans,
             &value_to_refill,
@@ -215,7 +219,7 @@ fn transform_milk(
         );
         let cold_milk = cold_milk_clone.lock().unwrap();
         thread::sleep(Duration::from_millis(
-            BASE_TIME_RESOURCE_APPLICATION * value_to_refill,
+            BASE_TIME_RESOURCE_REFILL * value_to_refill,
         ));
         convert_milk_to_foam_milk(milk_foam, &value_to_refill, cold_milk);
         println!("[Refill de leche espumada] Terminó de convertir leche espumada");
