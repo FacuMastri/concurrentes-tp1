@@ -6,7 +6,11 @@ struct Order {
 
 impl Order {
     pub fn new(water: u64, coffee: u64, milk: u64) -> Self {
-        Self { water, coffee, milk }
+        Self {
+            water,
+            coffee,
+            milk,
+        }
     }
 
     pub fn requires_coffee(&self) -> bool {
