@@ -1,7 +1,7 @@
+mod blocking_queue;
 mod constants;
 mod containers;
 mod order;
-mod blocking_queue;
 
 use crate::constants::{
     BASE_TIME_RESOURCE_REFILL, COFFEE_BEANS_ALERT_THRESHOLD, MILK_FOAM_ALERT_THRESHOLD,
@@ -9,16 +9,24 @@ use crate::constants::{
 use crate::containers::{
     CoffeeBeansToGrindContainer, ColdMilkContainer, GroundCoffeeBeansContainer, MilkFoamContainer,
 };
+use crate::order::Order;
+use blocking_queue::BlockingQueue;
 use constants::{
     BASE_TIME_RESOURCE_APPLICATION, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK,
     INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, RESOURCE_ALERT_FACTOR,
     STATS_TIME,
 };
-use rand::prelude::*;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
-use std::thread;
+use std::{io, thread};
 use std::thread::JoinHandle;
 use std::time::Duration;
+
+#[derive(Clone, Copy, Debug)]
+enum Ingredients {
+    Coffee = 0,
+    Milk,
+    Water,
+}
 
 fn main() {
     let coffee_beans_to_grind_container = Arc::new(Mutex::new(CoffeeBeansToGrindContainer::new(
@@ -37,6 +45,30 @@ fn main() {
 
     let total_drinks_prepared = Arc::new(Mutex::new(0));
 
+    let blocking_queue = Arc::new(BlockingQueue::<Order>::new());
+
+    let blocking_queue_clone = blocking_queue.clone();
+    let reader_handle = thread::spawn(move || {
+        let mut rdr = csv::ReaderBuilder::new().has_headers(false).from_reader(io::stdin());
+        for result in rdr.records() {
+            println!("[Lector de pedidos] Tomando pedido");
+            let record = result.unwrap();
+            let order = Order::new(
+                record[Ingredients::Coffee as usize].parse().unwrap(),
+                record[Ingredients::Milk as usize].parse().unwrap(),
+                record[Ingredients::Water as usize].parse().unwrap(),
+            );
+            println!("[Lector de pedidos] Pedido tomado y anotado: {:?}", order);
+            blocking_queue_clone.push_back(order);
+            // Sleep para simular que no todos los pedidos llegan de inmediato.
+            thread::sleep(Duration::from_millis(1000));
+        }
+        // In order to stop the program
+        for _ in 0..MAX_DISPENSERS {
+            blocking_queue_clone.push_back(Order::new(0, 0, 0));
+        }
+    });
+
     #[allow(clippy::needless_collect)]
     let dispensers: Vec<JoinHandle<()>> = (1..MAX_DISPENSERS + 1)
         .map(|i| {
@@ -45,6 +77,7 @@ fn main() {
             let total_drinks_prepared_clone = total_drinks_prepared.clone();
             let coffee_beans_to_grind_container_clone = coffee_beans_to_grind_container.clone();
             let cold_milk_container_clone = cold_milk_container.clone();
+            let blocking_queue_clone = blocking_queue.clone();
             thread::spawn(move || {
                 make_drink(
                     i,
@@ -53,6 +86,7 @@ fn main() {
                     total_drinks_prepared_clone,
                     coffee_beans_to_grind_container_clone,
                     cold_milk_container_clone,
+                    blocking_queue_clone,
                 );
             })
         })
@@ -100,6 +134,7 @@ fn main() {
     alert_system_for_coffee_beans.join().unwrap();
     alert_system_for_milk.join().unwrap();
     inform_system.join().unwrap();
+    reader_handle.join().unwrap();
 
     let _: Vec<()> = dispensers
         .into_iter()
@@ -242,36 +277,45 @@ fn make_drink(
     total_drinks_prepared_clone: Arc<Mutex<i32>>,
     coffee_beans_to_grind_container_clone: Arc<Mutex<CoffeeBeansToGrindContainer>>,
     cold_milk_container_clone: Arc<Mutex<ColdMilkContainer>>,
+    blocking_queue_clone: Arc<BlockingQueue<Order>>,
 ) {
     loop {
-        let coffee_order = random::<u64>() % 5;
-        let milk_order = random::<u64>() % 5;
-        let water_order = random::<u64>() % 5;
-        println!("[Dispenser {}] Recibió orden de café con: {} gr de café, {} gr de leche y {} gr de agua", n_dispenser, coffee_order, milk_order, water_order);
-        if coffee_order > 0 {
+        let order = blocking_queue_clone.pop_front();
+        if order.is_empty() {
+            println!("[Dispenser {}] No hay pedidos, apagando dispenser", n_dispenser);
+            break;
+        }
+        let coffee_amount = order.get_coffee();
+        let milk_amount = order.get_milk();
+        let water_amount = order.get_water();
+        println!(
+            "[Dispenser {}] Recibió orden de café con: {} de café, {} leche espumada y {} de agua",
+            n_dispenser, coffee_amount, milk_amount, water_amount
+        );
+        if order.requires_coffee() {
             let (lock, cvar) = &*ground_coffee_beans_clone;
             let mut ground_coffee_beans = lock.lock().unwrap();
-            if !ground_coffee_beans.has_enough(&coffee_order) {
+            if !ground_coffee_beans.has_enough(coffee_amount) {
                 println!(
                     "[Dispenser {}] No hay suficientes {} granos de café para preparar la bebida",
-                    n_dispenser, coffee_order
+                    n_dispenser, coffee_amount
                 );
                 let coffee_beans_to_grind_container =
                     coffee_beans_to_grind_container_clone.lock().unwrap();
                 convert_coffee_beans_to_ground_beans(
                     &mut ground_coffee_beans,
-                    &((coffee_order as f64 * 1.5) as u64),
+                    &((*coffee_amount as f64 * 1.5) as u64),
                     coffee_beans_to_grind_container,
                 );
             }
             println!(
                 "[Dispenser {}] Aplicando granos de café: {}",
-                n_dispenser, coffee_order
+                n_dispenser, coffee_amount
             );
             thread::sleep(Duration::from_millis(
-                (BASE_TIME_RESOURCE_APPLICATION * coffee_order) as u64,
+                (BASE_TIME_RESOURCE_APPLICATION * coffee_amount) as u64,
             ));
-            ground_coffee_beans.subtract(&coffee_order);
+            ground_coffee_beans.subtract(coffee_amount);
             println!(
                 "[Dispenser {}] Terminó de aplicar granos de café",
                 n_dispenser
@@ -279,42 +323,37 @@ fn make_drink(
             cvar.notify_all();
         }
 
-        if milk_order > 0 {
+        if order.requires_milk() {
             let (lock, cvar) = &*milk_foam_clone;
-            // let mut milk_foam = cvar
-            //     .wait_while(lock.lock().unwrap(), |milk_foam| {
-            //         !milk_foam.has_enough(&milk_order)
-            //     })
-            //     .unwrap();
             let mut milk_foam = lock.lock().unwrap();
-            if !milk_foam.has_enough(&milk_order) {
+            if !milk_foam.has_enough(milk_amount) {
                 println!(
                     "[Dispenser {}] No hay suficiente {} leche espumada para preparar la bebida",
-                    n_dispenser, milk_order
+                    n_dispenser, milk_amount
                 );
                 let cold_milk_container = cold_milk_container_clone.lock().unwrap();
                 convert_milk_to_foam_milk(
                     &mut milk_foam,
-                    &((milk_order as f64 * 1.5) as u64),
+                    &((*milk_amount as f64 * 1.5) as u64),
                     cold_milk_container,
                 );
             }
             println!(
                 "[Dispenser {}] Aplicando leche espumada: {}",
-                n_dispenser, milk_order
+                n_dispenser, milk_amount
             );
             thread::sleep(Duration::from_millis(
-                (BASE_TIME_RESOURCE_APPLICATION * milk_order) as u64,
+                (BASE_TIME_RESOURCE_APPLICATION * milk_amount) as u64,
             ));
-            milk_foam.subtract(&milk_order);
+            milk_foam.subtract(milk_amount);
             println!("[Dispenser {}] Terminó de aplicar leche", n_dispenser);
             cvar.notify_all();
         }
 
-        if water_order > 0 {
+        if order.requires_water() {
             println!("[Dispenser {}] Aplicando agua", n_dispenser);
             thread::sleep(Duration::from_millis(
-                (BASE_TIME_RESOURCE_APPLICATION * water_order) as u64,
+                (BASE_TIME_RESOURCE_APPLICATION * water_amount) as u64,
             ));
             println!("[Dispenser {}] Terminó de aplicar agua", n_dispenser);
         }

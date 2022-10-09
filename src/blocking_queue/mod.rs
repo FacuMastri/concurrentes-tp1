@@ -25,10 +25,13 @@ impl<T> BlockingQueue<T> {
 
     /// Pop element from front of queue
     pub fn pop_front(&self) -> T {
-        let mut dequeue = self.dequeue.lock().expect("Failed to lock dequeue");
-        while dequeue.len() == 0 {
-            dequeue = self.cvar.wait(dequeue).expect("Failed to wait on dequeue");
-        }
+        let mut dequeue = self
+            .cvar
+            .wait_while(
+                self.dequeue.lock().expect("Failed to lock dequeue"),
+                |dequeue| dequeue.is_empty(),
+            )
+            .expect("Failed to wait while dequeue is empty");
         dequeue.pop_front().expect("Failed to pop front of dequeue")
     }
 
