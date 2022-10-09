@@ -1,7 +1,7 @@
-mod blocking_queue;
 mod constants;
 mod containers;
 mod order;
+mod blocking_queue;
 
 use crate::constants::{
     BASE_TIME_RESOURCE_REFILL, COFFEE_BEANS_ALERT_THRESHOLD, MILK_FOAM_ALERT_THRESHOLD,
