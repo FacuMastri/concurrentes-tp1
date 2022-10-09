@@ -17,9 +17,9 @@ use constants::{
     STATS_TIME,
 };
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
-use std::{io, thread};
 use std::thread::JoinHandle;
 use std::time::Duration;
+use std::{io, thread};
 
 #[derive(Clone, Copy, Debug)]
 enum Ingredients {
@@ -49,7 +49,9 @@ fn main() {
 
     let blocking_queue_clone = blocking_queue.clone();
     let reader_handle = thread::spawn(move || {
-        let mut rdr = csv::ReaderBuilder::new().has_headers(false).from_reader(io::stdin());
+        let mut rdr = csv::ReaderBuilder::new()
+            .has_headers(false)
+            .from_reader(io::stdin());
         for result in rdr.records() {
             println!("[Lector de pedidos] Tomando pedido");
             let record = result.unwrap();
@@ -282,7 +284,10 @@ fn make_drink(
     loop {
         let order = blocking_queue_clone.pop_front();
         if order.is_empty() {
-            println!("[Dispenser {}] No hay pedidos, apagando dispenser", n_dispenser);
+            println!(
+                "[Dispenser {}] No hay pedidos, apagando dispenser",
+                n_dispenser
+            );
             break;
         }
         let coffee_amount = order.get_coffee();
