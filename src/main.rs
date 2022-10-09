@@ -1,7 +1,7 @@
+mod blocking_queue;
 mod constants;
 mod containers;
 mod order;
-mod blocking_queue;
 
 use crate::constants::{
     BASE_TIME_RESOURCE_REFILL, COFFEE_BEANS_ALERT_THRESHOLD, MILK_FOAM_ALERT_THRESHOLD,
@@ -43,6 +43,7 @@ fn main() {
             let ground_coffee_beans_clone = ground_coffee_beans_container.clone();
             let milk_foam_clone = milk_foam_container.clone();
             let total_drinks_prepared_clone = total_drinks_prepared.clone();
+            let coffee_beans_to_grind_container_clone = coffee_beans_to_grind_container.clone();
             thread::spawn(move || {
                 // TODO, una vez tomado el lock, verificar que haya suficiente de algo para poder hacerlo (sacamos el wait_while), si no hay, obtener el otro container y fabricar lo necesario pero con un factor de carga
                 make_drink(
@@ -50,6 +51,7 @@ fn main() {
                     ground_coffee_beans_clone,
                     milk_foam_clone,
                     total_drinks_prepared_clone,
+                    coffee_beans_to_grind_container_clone
                 );
             })
         })
@@ -200,26 +202,18 @@ fn transform_coffee(
 ) {
     loop {
         let (lock, cvar) = &*ground_coffee_beans_container_clone;
-        let ground_coffee_beans = cvar
+        let mut ground_coffee_beans = cvar
             .wait_while(lock.lock().unwrap(), |ground_coffee_beans| {
                 ground_coffee_beans.has_any()
             })
             .unwrap();
-        let value_to_refill = 100;
-        println!(
-            "[Refill de café] Convirtiendo {} de granos para moler a granos molidos",
-            value_to_refill
-        );
         let coffee_beans_to_grind = coffee_beans_to_grind_container_clone.lock().unwrap();
-        thread::sleep(Duration::from_millis(
-            BASE_TIME_RESOURCE_REFILL * value_to_refill,
-        ));
+        let value_to_refill = 100;
         convert_coffee_beans_to_ground_beans(
-            ground_coffee_beans,
+            &mut ground_coffee_beans,
             &value_to_refill,
             coffee_beans_to_grind,
         );
-        println!("[Refill de café] Terminó de convertir granos de café");
         cvar.notify_all();
     }
 }
@@ -253,19 +247,25 @@ fn make_drink(
     ground_coffee_beans_clone: Arc<(Mutex<GroundCoffeeBeansContainer>, Condvar)>,
     milk_foam_clone: Arc<(Mutex<MilkFoamContainer>, Condvar)>,
     total_drinks_prepared_clone: Arc<Mutex<i32>>,
+    coffee_beans_to_grind_container_clone: Arc<Mutex<CoffeeBeansToGrindContainer>>,
 ) {
     loop {
-        let coffee_order = random::<u64>() % 5;
+        let coffee_order = 100;
         let milk_order = random::<u64>() % 5;
         let water_order = random::<u64>() % 5;
         println!("[Dispenser {}] Recibió orden de café con: {} gr de café, {} gr de leche y {} gr de agua", n_dispenser, coffee_order, milk_order, water_order);
         if coffee_order > 0 {
             let (lock, cvar) = &*ground_coffee_beans_clone;
-            let mut ground_coffee_beans = cvar
-                .wait_while(lock.lock().unwrap(), |ground_coffee_beans| {
-                    !ground_coffee_beans.has_enough(&coffee_order)
-                })
-                .unwrap();
+            let mut ground_coffee_beans = lock.lock().unwrap();
+            if !ground_coffee_beans.has_enough(&coffee_order) {
+                println!("[Dispenser {}] No hay suficientes granos de café para preparar la bebida con {}", n_dispenser, coffee_order);
+                let coffee_beans_to_grind_container = coffee_beans_to_grind_container_clone.lock().unwrap();
+                convert_coffee_beans_to_ground_beans(
+                    &mut ground_coffee_beans,
+                    &((coffee_order as f64 * 1.5) as u64),
+                    coffee_beans_to_grind_container,
+                );
+            }
             println!(
                 "[Dispenser {}] Aplicando granos de café: {}",
                 n_dispenser, coffee_order
@@ -315,12 +315,20 @@ fn make_drink(
 }
 
 fn convert_coffee_beans_to_ground_beans(
-    mut ground_coffee_beans: MutexGuard<GroundCoffeeBeansContainer>,
+    ground_coffee_beans: &mut std::sync::MutexGuard<'_, GroundCoffeeBeansContainer>,
     value_to_refill: &u64,
     mut coffee_beans_to_grind: MutexGuard<CoffeeBeansToGrindContainer>,
 ) {
+    println!(
+        "[Refill de café] Convirtiendo {} de granos para moler a granos molidos",
+        value_to_refill
+    );
+    thread::sleep(Duration::from_millis(
+        BASE_TIME_RESOURCE_REFILL * value_to_refill,
+    ));
     coffee_beans_to_grind.grind(value_to_refill);
     ground_coffee_beans.add(value_to_refill);
+    println!("[Refill de café] Terminó de convertir granos de café");
 }
 
 fn convert_milk_to_foam_milk(

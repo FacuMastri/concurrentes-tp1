@@ -1,5 +1,5 @@
-use std::sync::*;
 use std::collections::*;
+use std::sync::*;
 
 #[derive(Debug)]
 pub struct BlockingQueue<T> {
@@ -8,7 +8,6 @@ pub struct BlockingQueue<T> {
 }
 
 impl<T> BlockingQueue<T> {
-
     /// Create empty blocking queue
     pub fn new() -> Self {
         Self {

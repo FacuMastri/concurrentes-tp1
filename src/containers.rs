@@ -63,9 +63,6 @@ impl GroundCoffeeBeansContainer {
         &self.amount_used
     }
 
-    pub fn get_beans(&self) -> &u64 {
-        &self.beans
-    }
 }
 
 pub struct ColdMilkContainer {
