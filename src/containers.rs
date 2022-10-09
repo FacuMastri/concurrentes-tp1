@@ -62,7 +62,6 @@ impl GroundCoffeeBeansContainer {
     pub fn get_amount_used(&self) -> &u64 {
         &self.amount_used
     }
-
 }
 
 pub struct ColdMilkContainer {

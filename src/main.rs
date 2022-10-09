@@ -44,14 +44,15 @@ fn main() {
             let milk_foam_clone = milk_foam_container.clone();
             let total_drinks_prepared_clone = total_drinks_prepared.clone();
             let coffee_beans_to_grind_container_clone = coffee_beans_to_grind_container.clone();
+            let cold_milk_container_clone = cold_milk_container.clone();
             thread::spawn(move || {
-                // TODO, una vez tomado el lock, verificar que haya suficiente de algo para poder hacerlo (sacamos el wait_while), si no hay, obtener el otro container y fabricar lo necesario pero con un factor de carga
                 make_drink(
                     i,
                     ground_coffee_beans_clone,
                     milk_foam_clone,
                     total_drinks_prepared_clone,
-                    coffee_beans_to_grind_container_clone
+                    coffee_beans_to_grind_container_clone,
+                    cold_milk_container_clone,
                 );
             })
         })
@@ -224,20 +225,12 @@ fn transform_milk(
 ) {
     loop {
         let (lock, cvar) = &*milk_foam_clone;
-        let milk_foam = cvar
+        let mut milk_foam = cvar
             .wait_while(lock.lock().unwrap(), |milk_foam| milk_foam.has_any())
             .unwrap();
-        let value_to_refill = 100;
-        println!(
-            "[Refill de leche espumada] Convirtiendo {} de leche a leche espumada",
-            value_to_refill
-        );
         let cold_milk = cold_milk_clone.lock().unwrap();
-        thread::sleep(Duration::from_millis(
-            BASE_TIME_RESOURCE_REFILL * value_to_refill,
-        ));
-        convert_milk_to_foam_milk(milk_foam, &value_to_refill, cold_milk);
-        println!("[Refill de leche espumada] Terminó de convertir leche espumada");
+        let value_to_refill = 100;
+        convert_milk_to_foam_milk(&mut milk_foam, &value_to_refill, cold_milk);
         cvar.notify_all();
     }
 }
@@ -248,9 +241,10 @@ fn make_drink(
     milk_foam_clone: Arc<(Mutex<MilkFoamContainer>, Condvar)>,
     total_drinks_prepared_clone: Arc<Mutex<i32>>,
     coffee_beans_to_grind_container_clone: Arc<Mutex<CoffeeBeansToGrindContainer>>,
+    cold_milk_container_clone: Arc<Mutex<ColdMilkContainer>>,
 ) {
     loop {
-        let coffee_order = 100;
+        let coffee_order = random::<u64>() % 5;
         let milk_order = random::<u64>() % 5;
         let water_order = random::<u64>() % 5;
         println!("[Dispenser {}] Recibió orden de café con: {} gr de café, {} gr de leche y {} gr de agua", n_dispenser, coffee_order, milk_order, water_order);
@@ -258,8 +252,12 @@ fn make_drink(
             let (lock, cvar) = &*ground_coffee_beans_clone;
             let mut ground_coffee_beans = lock.lock().unwrap();
             if !ground_coffee_beans.has_enough(&coffee_order) {
-                println!("[Dispenser {}] No hay suficientes granos de café para preparar la bebida con {}", n_dispenser, coffee_order);
-                let coffee_beans_to_grind_container = coffee_beans_to_grind_container_clone.lock().unwrap();
+                println!(
+                    "[Dispenser {}] No hay suficientes {} granos de café para preparar la bebida",
+                    n_dispenser, coffee_order
+                );
+                let coffee_beans_to_grind_container =
+                    coffee_beans_to_grind_container_clone.lock().unwrap();
                 convert_coffee_beans_to_ground_beans(
                     &mut ground_coffee_beans,
                     &((coffee_order as f64 * 1.5) as u64),
@@ -283,11 +281,24 @@ fn make_drink(
 
         if milk_order > 0 {
             let (lock, cvar) = &*milk_foam_clone;
-            let mut milk_foam = cvar
-                .wait_while(lock.lock().unwrap(), |milk_foam| {
-                    !milk_foam.has_enough(&milk_order)
-                })
-                .unwrap();
+            // let mut milk_foam = cvar
+            //     .wait_while(lock.lock().unwrap(), |milk_foam| {
+            //         !milk_foam.has_enough(&milk_order)
+            //     })
+            //     .unwrap();
+            let mut milk_foam = lock.lock().unwrap();
+            if !milk_foam.has_enough(&milk_order) {
+                println!(
+                    "[Dispenser {}] No hay suficiente {} leche espumada para preparar la bebida",
+                    n_dispenser, milk_order
+                );
+                let cold_milk_container = cold_milk_container_clone.lock().unwrap();
+                convert_milk_to_foam_milk(
+                    &mut milk_foam,
+                    &((milk_order as f64 * 1.5) as u64),
+                    cold_milk_container,
+                );
+            }
             println!(
                 "[Dispenser {}] Aplicando leche espumada: {}",
                 n_dispenser, milk_order
@@ -315,7 +326,7 @@ fn make_drink(
 }
 
 fn convert_coffee_beans_to_ground_beans(
-    ground_coffee_beans: &mut std::sync::MutexGuard<'_, GroundCoffeeBeansContainer>,
+    ground_coffee_beans: &mut MutexGuard<GroundCoffeeBeansContainer>,
     value_to_refill: &u64,
     mut coffee_beans_to_grind: MutexGuard<CoffeeBeansToGrindContainer>,
 ) {
@@ -332,10 +343,18 @@ fn convert_coffee_beans_to_ground_beans(
 }
 
 fn convert_milk_to_foam_milk(
-    mut milk_foam: MutexGuard<MilkFoamContainer>,
+    milk_foam_container: &mut MutexGuard<MilkFoamContainer>,
     value_to_refill: &u64,
-    mut cold_milk: MutexGuard<ColdMilkContainer>,
+    mut cold_milk_container: MutexGuard<ColdMilkContainer>,
 ) {
-    cold_milk.subtract(value_to_refill);
-    milk_foam.add(value_to_refill);
+    println!(
+        "[Refill de leche espumada] Convirtiendo {} de leche a leche espumada",
+        value_to_refill
+    );
+    thread::sleep(Duration::from_millis(
+        BASE_TIME_RESOURCE_REFILL * value_to_refill,
+    ));
+    cold_milk_container.subtract(value_to_refill);
+    milk_foam_container.add(value_to_refill);
+    println!("[Refill de leche espumada] Terminó de convertir leche espumada");
 }
