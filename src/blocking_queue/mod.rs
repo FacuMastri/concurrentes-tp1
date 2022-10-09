@@ -35,8 +35,4 @@ impl<T> BlockingQueue<T> {
         dequeue.pop_front().expect("Failed to pop front of dequeue")
     }
 
-    /// Return number of elements in queue
-    pub fn len(&self) -> usize {
-        self.dequeue.lock().expect("Failed to lock dequeue").len()
-    }
 }

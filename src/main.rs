@@ -6,16 +6,11 @@ mod order;
 use crate::constants::{
     BASE_TIME_RESOURCE_REFILL, COFFEE_BEANS_ALERT_THRESHOLD, MILK_FOAM_ALERT_THRESHOLD,
 };
-use crate::containers::{
-    CoffeeBeansToGrindContainer, ColdMilkContainer, GroundCoffeeBeansContainer, MilkFoamContainer,
-};
+use crate::containers::coffee_beans::{CoffeeBeansToGrindContainer, GroundCoffeeBeansContainer};
+use crate::containers::milk::{ColdMilkContainer, MilkFoamContainer};
 use crate::order::Order;
 use blocking_queue::BlockingQueue;
-use constants::{
-    BASE_TIME_RESOURCE_APPLICATION, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK,
-    INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, RESOURCE_ALERT_FACTOR,
-    STATS_TIME,
-};
+use constants::{BASE_TIME_RESOURCE_APPLICATION, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK, INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, ORDER_TIME_ARRIVAL, RESOURCE_ALERT_FACTOR, STATS_TIME};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -62,10 +57,11 @@ fn main() {
             );
             println!("[Lector de pedidos] Pedido tomado y anotado: {:?}", order);
             blocking_queue_clone.push_back(order);
-            // Sleep para simular que no todos los pedidos llegan de inmediato.
-            thread::sleep(Duration::from_millis(1000));
+            // Sleep para simular que todos los pedidos no llegan de inmediato. Similar a clientes.
+            thread::sleep(Duration::from_millis(ORDER_TIME_ARRIVAL));
         }
-        // In order to stop the program
+        // Para finalizar el programa y hacer un shutdown, debo comunicarle a los dispensadores que ya no hay más pedidos.
+        println!("[Lector de pedidos] No hay más pedidos para leer");
         for _ in 0..MAX_DISPENSERS {
             blocking_queue_clone.push_back(Order::new(0, 0, 0));
         }
