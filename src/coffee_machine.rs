@@ -59,7 +59,7 @@ pub struct CoffeeMachine {
     milk_foam_container: Arc<(Mutex<MilkFoamContainer>, Condvar)>,
     total_drinks_prepared: Arc<Mutex<u64>>,
     blocking_queue: Arc<BlockingQueue<Order>>,
-    shutdown: Arc<AtomicBool>
+    should_shutdown: Arc<AtomicBool>
 }
 
 impl CoffeeMachine {
@@ -79,7 +79,7 @@ impl CoffeeMachine {
             )),
             total_drinks_prepared: Arc::new(Mutex::new(0)),
             blocking_queue: Arc::new(BlockingQueue::new()),
-            shutdown: Arc::new(AtomicBool::new(false))
+            should_shutdown: Arc::new(AtomicBool::new(false))
         })
     }
 
@@ -148,7 +148,7 @@ impl CoffeeMachine {
             for _ in 0..MAX_DISPENSERS {
                 coffee_machine_clone.blocking_queue.push_back(Order::new(0, 0, 0));
             }
-            coffee_machine_clone.shutdown.store(true, Ordering::Relaxed);
+            coffee_machine_clone.should_shutdown.store(true, Ordering::Relaxed);
         })
     }
 
@@ -260,11 +260,7 @@ impl CoffeeMachine {
     }
 
     fn transform_milk(&self) {
-        loop {
-            if self.shutdown.load(Ordering::Relaxed) {
-                println!("[Refill de leche espumada] Apagando refill de leche espumada");
-                break;
-            }
+        while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.milk_foam_container;
             let mut milk_foam = cvar
                 .wait_timeout_while(lock.lock().expect("Failed to obtain lock"), Duration::from_secs(5), |milk_foam| {
@@ -281,14 +277,11 @@ impl CoffeeMachine {
             convert_milk_to_foam_milk(&mut milk_foam.0, &value_to_refill, cold_milk);
             cvar.notify_all();
         }
+        println!("[Refill de leche espumada] Apagando refill de leche espumada");
     }
 
     fn transform_coffee(&self) {
-        loop {
-            if self.shutdown.load(Ordering::Relaxed) {
-                println!("[Refill de café] Apagando refill de granos de café");
-                break;
-            }
+        while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.ground_coffee_beans_container;
             let mut ground_coffee_beans = cvar
                 .wait_timeout_while(
@@ -310,6 +303,7 @@ impl CoffeeMachine {
             );
             cvar.notify_all();
         }
+        println!("[Refill de café] Apagando refill de granos de café");
     }
 
     fn refill_milk(self: &Arc<Self>) -> JoinHandle<()> {
@@ -322,11 +316,7 @@ impl CoffeeMachine {
     }
 
     fn inform_about_coffee_beans(&self) {
-        loop {
-            if self.shutdown.load(Ordering::Relaxed) {
-                println!("[Alerta de recursos: café] Apagando alerta de recursos de café");
-                break;
-            }
+        while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.ground_coffee_beans_container;
             let ground_coffee_beans = cvar
                 .wait_timeout_while(
@@ -345,6 +335,7 @@ impl CoffeeMachine {
                 RESOURCE_ALERT_FACTOR * 100.0
             );
         }
+        println!("[Alerta de recursos: café] Apagando alerta de recursos de café");
     }
     fn alert_for_coffee_beans(self: &Arc<Self>) -> JoinHandle<()> {
         let coffee_machine_clone = self.clone();
@@ -356,11 +347,7 @@ impl CoffeeMachine {
     }
 
     fn inform_about_milk_foam(&self) {
-        loop {
-            if self.shutdown.load(Ordering::Relaxed) {
-                println!("[Alerta de recursos: leche] Apagando alerta de recursos de leche");
-                break;
-            }
+        while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.milk_foam_container;
             let milk_foam = cvar
                 .wait_timeout_while(lock.lock().expect("Failed to obtain lock"), Duration::from_secs(5), |milk_foam| {
@@ -376,6 +363,7 @@ impl CoffeeMachine {
                 RESOURCE_ALERT_FACTOR * 100.0
             );
         }
+        println!("[Alerta de recursos: leche] Apagando alerta de recursos de leche");
     }
 
     fn inform_system(self: &Arc<Self>) -> JoinHandle<()> {
@@ -385,11 +373,7 @@ impl CoffeeMachine {
 
     #[allow(clippy::format_push_string)]
     fn inform_stats(&self) {
-        loop {
-            if self.shutdown.load(Ordering::Relaxed) {
-                println!("[Estadísticas] Apagando informe del sistema");
-                break;
-            }
+        while !self.should_shutdown.load(Ordering::Relaxed) {
             let mut report = String::from("[Estadísticas] ");
             {
                 let total_drinks = self.total_drinks_prepared
@@ -441,5 +425,6 @@ impl CoffeeMachine {
             println!("{}", report);
             thread::sleep(Duration::from_secs(STATS_UPDATE_TIME));
         }
+        println!("[Estadísticas] Apagando informe del sistema");
     }
 }
