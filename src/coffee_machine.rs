@@ -1,57 +1,18 @@
 use crate::constants::{COFFEE_TO_REFILL, MILK_TO_REFILL};
 use crate::container::Container;
+use crate::utils::converter::{refill_coffee, refill_milk};
+use crate::utils::Ingredients;
 use crate::{
-    BlockingQueue, Order, BASE_TIME_RESOURCE_APPLICATION, BASE_TIME_RESOURCE_REFILL,
-    COFFEE_BEANS_ALERT_THRESHOLD, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK,
-    INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, MILK_FOAM_ALERT_THRESHOLD,
-    ORDER_TIME_INTERVAL_ARRIVAL, RESOURCE_ALERT_FACTOR, STATS_UPDATE_INTERVAL,
+    BlockingQueue, Order, BASE_TIME_RESOURCE_APPLICATION, COFFEE_BEANS_ALERT_THRESHOLD,
+    INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK, INITIAL_GROUND_COFFEE_BEANS,
+    INITIAL_MILK_FOAM, MAX_DISPENSERS, MILK_FOAM_ALERT_THRESHOLD, ORDER_TIME_INTERVAL_ARRIVAL,
+    RESOURCE_ALERT_FACTOR, STATS_UPDATE_INTERVAL,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 use std::{io, thread};
-
-fn convert_coffee_beans_to_ground_beans(
-    ground_coffee_beans_container: &mut MutexGuard<Container>,
-    value_to_refill: &u64,
-    mut coffee_beans_to_grind_container: MutexGuard<Container>,
-) {
-    println!(
-        "[Refill de café] Convirtiendo {} de granos para moler a granos molidos",
-        value_to_refill
-    );
-    thread::sleep(Duration::from_millis(
-        BASE_TIME_RESOURCE_REFILL * value_to_refill,
-    ));
-    coffee_beans_to_grind_container.subtract(value_to_refill);
-    ground_coffee_beans_container.add(value_to_refill);
-    println!("[Refill de café] Terminó de convertir granos de café");
-}
-
-fn convert_milk_to_foam_milk(
-    milk_foam_container: &mut MutexGuard<Container>,
-    value_to_refill: &u64,
-    mut cold_milk_container: MutexGuard<Container>,
-) {
-    println!(
-        "[Refill de leche espumada] Convirtiendo {} de leche a leche espumada",
-        value_to_refill
-    );
-    thread::sleep(Duration::from_millis(
-        BASE_TIME_RESOURCE_REFILL * value_to_refill,
-    ));
-    cold_milk_container.subtract(value_to_refill);
-    milk_foam_container.add(value_to_refill);
-    println!("[Refill de leche espumada] Terminó de convertir leche espumada");
-}
-
-#[derive(Clone, Copy, Debug)]
-enum Ingredients {
-    Coffee = 0,
-    Milk,
-    Water,
-}
 
 pub struct CoffeeMachine {
     coffee_beans_to_grind_container: Arc<Mutex<Container>>,
@@ -199,7 +160,7 @@ impl CoffeeMachine {
                         .coffee_beans_to_grind_container
                         .lock()
                         .expect("Failed to lock coffee_beans_to_grind_container");
-                    convert_coffee_beans_to_ground_beans(
+                    refill_coffee(
                         &mut ground_coffee_beans,
                         &((*coffee_amount as f64 * 1.5) as u64),
                         coffee_beans_to_grind_container,
@@ -232,7 +193,7 @@ impl CoffeeMachine {
                         .cold_milk_container
                         .lock()
                         .expect("Failed to lock cold_milk_container");
-                    convert_milk_to_foam_milk(
+                    refill_milk(
                         &mut milk_foam,
                         &((*milk_amount as f64 * 1.5) as u64),
                         cold_milk_container,
@@ -284,7 +245,7 @@ impl CoffeeMachine {
                 .cold_milk_container
                 .lock()
                 .expect("Failed to lock cold_milk_container");
-            convert_milk_to_foam_milk(&mut milk_foam, &MILK_TO_REFILL, cold_milk);
+            refill_milk(&mut milk_foam, &MILK_TO_REFILL, cold_milk);
             cvar.notify_all();
         }
         println!("[Refill de leche espumada] Apagando refill de leche espumada");
@@ -307,7 +268,7 @@ impl CoffeeMachine {
                 .coffee_beans_to_grind_container
                 .lock()
                 .expect("Failed to lock coffee_beans_to_grind_container");
-            convert_coffee_beans_to_ground_beans(
+            refill_coffee(
                 &mut ground_coffee_beans,
                 &COFFEE_TO_REFILL,
                 coffee_beans_to_grind,

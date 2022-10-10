@@ -3,6 +3,7 @@ mod coffee_machine;
 mod constants;
 mod container;
 mod order;
+mod utils;
 
 use crate::coffee_machine::CoffeeMachine;
 use crate::constants::{
