@@ -1,3 +1,4 @@
+use crate::constants::{COFFEE_TO_REFILL, MILK_TO_REFILL};
 use crate::{
     BlockingQueue, CoffeeBeansToGrindContainer, ColdMilkContainer, GroundCoffeeBeansContainer,
     MilkFoamContainer, Order, BASE_TIME_RESOURCE_APPLICATION, BASE_TIME_RESOURCE_REFILL,
@@ -5,12 +6,11 @@ use crate::{
     INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, MILK_FOAM_ALERT_THRESHOLD,
     ORDER_TIME_INTERVAL_ARRIVAL, RESOURCE_ALERT_FACTOR, STATS_UPDATE_INTERVAL,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::Duration;
 use std::{io, thread};
-use std::sync::atomic::{AtomicBool, Ordering};
-use crate::constants::{COFFEE_TO_REFILL, MILK_TO_REFILL};
 
 fn convert_coffee_beans_to_ground_beans(
     ground_coffee_beans: &mut MutexGuard<GroundCoffeeBeansContainer>,
@@ -60,7 +60,7 @@ pub struct CoffeeMachine {
     milk_foam_container: Arc<(Mutex<MilkFoamContainer>, Condvar)>,
     total_drinks_prepared: Arc<Mutex<u64>>,
     blocking_queue: Arc<BlockingQueue<Order>>,
-    should_shutdown: Arc<AtomicBool>
+    should_shutdown: Arc<AtomicBool>,
 }
 
 impl CoffeeMachine {
@@ -80,7 +80,7 @@ impl CoffeeMachine {
             )),
             total_drinks_prepared: Arc::new(Mutex::new(0)),
             blocking_queue: Arc::new(BlockingQueue::new()),
-            should_shutdown: Arc::new(AtomicBool::new(false))
+            should_shutdown: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -147,9 +147,13 @@ impl CoffeeMachine {
             // Para finalizar el programa y hacer un shutdown, debo comunicarle a los dispensadores que ya no hay más pedidos.
             println!("[Lector de pedidos] No hay más pedidos para leer");
             for _ in 0..MAX_DISPENSERS {
-                coffee_machine_clone.blocking_queue.push_back(Order::new(0, 0, 0));
+                coffee_machine_clone
+                    .blocking_queue
+                    .push_back(Order::new(0, 0, 0));
             }
-            coffee_machine_clone.should_shutdown.store(true, Ordering::Relaxed);
+            coffee_machine_clone
+                .should_shutdown
+                .store(true, Ordering::Relaxed);
         })
     }
 
@@ -191,7 +195,8 @@ impl CoffeeMachine {
                         "[Dispenser {}] No hay suficientes {} granos de café para preparar la bebida",
                         n_dispenser, coffee_amount
                     );
-                    let coffee_beans_to_grind_container = self.coffee_beans_to_grind_container
+                    let coffee_beans_to_grind_container = self
+                        .coffee_beans_to_grind_container
                         .lock()
                         .expect("Failed to lock coffee_beans_to_grind_container");
                     convert_coffee_beans_to_ground_beans(
@@ -223,7 +228,8 @@ impl CoffeeMachine {
                         "[Dispenser {}] No hay suficiente {} leche espumada para preparar la bebida",
                         n_dispenser, milk_amount
                     );
-                    let cold_milk_container = self.cold_milk_container
+                    let cold_milk_container = self
+                        .cold_milk_container
                         .lock()
                         .expect("Failed to lock cold_milk_container");
                     convert_milk_to_foam_milk(
@@ -253,7 +259,8 @@ impl CoffeeMachine {
             }
 
             println!("[Dispenser {}] Terminó de preparar bebida", n_dispenser);
-            let mut total_drinks = self.total_drinks_prepared
+            let mut total_drinks = self
+                .total_drinks_prepared
                 .lock()
                 .expect("Failed to lock total_drinks");
             *total_drinks += 1;
@@ -263,18 +270,21 @@ impl CoffeeMachine {
     fn transform_milk(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.milk_foam_container;
-            let mut milk_foam = cvar
-                .wait_timeout_while(lock.lock().expect("Failed to obtain lock"), Duration::from_secs(5), |milk_foam| {
-                    milk_foam.has_any()
-                })
+            let (mut milk_foam, timeout_result) = cvar
+                .wait_timeout_while(
+                    lock.lock().expect("Failed to obtain lock"),
+                    Duration::from_secs(5),
+                    |milk_foam| milk_foam.has_any(),
+                )
                 .expect("Failed to wait for milk_foam");
-            if milk_foam.1.timed_out() {
+            if timeout_result.timed_out() {
                 continue;
             }
-            let cold_milk = self.cold_milk_container
+            let cold_milk = self
+                .cold_milk_container
                 .lock()
                 .expect("Failed to lock cold_milk_container");
-            convert_milk_to_foam_milk(&mut milk_foam.0, &MILK_TO_REFILL, cold_milk);
+            convert_milk_to_foam_milk(&mut milk_foam, &MILK_TO_REFILL, cold_milk);
             cvar.notify_all();
         }
         println!("[Refill de leche espumada] Apagando refill de leche espumada");
@@ -283,20 +293,22 @@ impl CoffeeMachine {
     fn transform_coffee(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.ground_coffee_beans_container;
-            let mut ground_coffee_beans = cvar
+            let (mut ground_coffee_beans, timeout_result) = cvar
                 .wait_timeout_while(
-                    lock.lock().expect("Failed to obtain lock"), Duration::from_secs(5),
+                    lock.lock().expect("Failed to obtain lock"),
+                    Duration::from_secs(5),
                     |ground_coffee_beans| ground_coffee_beans.has_any(),
                 )
                 .expect("Failed to wait for ground_coffee_beans");
-            if ground_coffee_beans.1.timed_out() {
+            if timeout_result.timed_out() {
                 continue;
             }
-            let coffee_beans_to_grind = self.coffee_beans_to_grind_container
+            let coffee_beans_to_grind = self
+                .coffee_beans_to_grind_container
                 .lock()
                 .expect("Failed to lock coffee_beans_to_grind_container");
             convert_coffee_beans_to_ground_beans(
-                &mut ground_coffee_beans.0,
+                &mut ground_coffee_beans,
                 &COFFEE_TO_REFILL,
                 coffee_beans_to_grind,
             );
@@ -317,20 +329,21 @@ impl CoffeeMachine {
     fn inform_about_coffee_beans(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.ground_coffee_beans_container;
-            let ground_coffee_beans = cvar
+            let (ground_coffee_beans, timeout_result) = cvar
                 .wait_timeout_while(
-                    lock.lock().expect("Failed to obtain lock"), Duration::from_secs(5),
+                    lock.lock().expect("Failed to obtain lock"),
+                    Duration::from_secs(5),
                     |ground_coffee_beans| {
                         ground_coffee_beans.has_enough(&(COFFEE_BEANS_ALERT_THRESHOLD as u64))
                     },
                 )
                 .expect("Failed to wait for ground_coffee_beans");
-            if ground_coffee_beans.1.timed_out() {
+            if timeout_result.timed_out() {
                 continue;
             }
             println!(
                 "[Alerta de recursos: café] El nivel de granos de café es de {} (threshold de {}%)",
-                (*ground_coffee_beans.0).get_coffee_beans(),
+                (*ground_coffee_beans).get_coffee_beans(),
                 RESOURCE_ALERT_FACTOR * 100.0
             );
         }
@@ -348,17 +361,19 @@ impl CoffeeMachine {
     fn inform_about_milk_foam(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.milk_foam_container;
-            let milk_foam = cvar
-                .wait_timeout_while(lock.lock().expect("Failed to obtain lock"), Duration::from_secs(5), |milk_foam| {
-                    milk_foam.has_enough(&(MILK_FOAM_ALERT_THRESHOLD as u64))
-                })
+            let (milk_foam, timeout_result) = cvar
+                .wait_timeout_while(
+                    lock.lock().expect("Failed to obtain lock"),
+                    Duration::from_secs(5),
+                    |milk_foam| milk_foam.has_enough(&(MILK_FOAM_ALERT_THRESHOLD as u64)),
+                )
                 .expect("Failed to wait for milk_foam");
-            if milk_foam.1.timed_out() {
+            if timeout_result.timed_out() {
                 continue;
             }
             println!(
                 "[Alerta de recursos: leche] El nivel de leche espumada es de {} (threshold de {}%)",
-                (*milk_foam.0).get_milk(),
+                (*milk_foam).get_milk(),
                 RESOURCE_ALERT_FACTOR * 100.0
             );
         }
@@ -375,7 +390,8 @@ impl CoffeeMachine {
         while !self.should_shutdown.load(Ordering::Relaxed) {
             let mut report = String::from("[Estadísticas] ");
             {
-                let total_drinks = self.total_drinks_prepared
+                let total_drinks = self
+                    .total_drinks_prepared
                     .lock()
                     .expect("Failed to lock total_drinks");
                 report.push_str(&format!(
@@ -393,7 +409,8 @@ impl CoffeeMachine {
                 ));
             }
             {
-                let coffee_beans_to_grind = self.coffee_beans_to_grind_container
+                let coffee_beans_to_grind = self
+                    .coffee_beans_to_grind_container
                     .lock()
                     .expect("Failed to lock coffee_beans_to_grind");
                 report.push_str(&format!(
@@ -403,7 +420,8 @@ impl CoffeeMachine {
                 ));
             }
             {
-                let cold_milk = self.cold_milk_container
+                let cold_milk = self
+                    .cold_milk_container
                     .lock()
                     .expect("Failed to lock cold_milk");
                 report.push_str(&format!(
