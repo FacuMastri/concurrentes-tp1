@@ -25,7 +25,7 @@ pub const BASE_TIME_RESOURCE_APPLICATION: u64 = 500;
 pub const BASE_TIME_RESOURCE_REFILL: u64 = (0.10 * BASE_TIME_RESOURCE_APPLICATION as f64) as u64;
 
 /// Time (in seconds) between each coffee machine status update
-pub const STATS_TIME: u64 = 5;
+pub const STATS_UPDATE_TIME: u64 = 5;
 
 /// Time (in milliseconds) between each order taken. This is used to simulate the arrival of a customer.
 pub const ORDER_TIME_ARRIVAL: u64 = 2000;

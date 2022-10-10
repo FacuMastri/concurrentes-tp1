@@ -3,7 +3,7 @@ use crate::{
     MilkFoamContainer, Order, BASE_TIME_RESOURCE_APPLICATION, BASE_TIME_RESOURCE_REFILL,
     COFFEE_BEANS_ALERT_THRESHOLD, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK,
     INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, MILK_FOAM_ALERT_THRESHOLD,
-    ORDER_TIME_ARRIVAL, RESOURCE_ALERT_FACTOR, STATS_TIME,
+    ORDER_TIME_ARRIVAL, RESOURCE_ALERT_FACTOR, STATS_UPDATE_TIME,
 };
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
@@ -89,12 +89,24 @@ impl CoffeeMachine {
         let alert_system_for_milk = self.alert_for_milk();
         let inform_system = self.inform_system();
 
-        coffee_refill.join().unwrap();
-        milk_refill.join().unwrap();
-        alert_system_for_coffee_beans.join().unwrap();
-        alert_system_for_milk.join().unwrap();
-        inform_system.join().unwrap();
-        reader_handle.join().unwrap();
+        coffee_refill
+            .join()
+            .expect("Failed to join coffee_refill thread");
+        milk_refill
+            .join()
+            .expect("Failed to join milk_refill thread");
+        alert_system_for_coffee_beans
+            .join()
+            .expect("Failed to join alert_system_for_coffee_beans thread");
+        alert_system_for_milk
+            .join()
+            .expect("Failed to join alert_system_for_milk thread");
+        inform_system
+            .join()
+            .expect("Failed to join inform_system thread");
+        reader_handle
+            .join()
+            .expect("Failed to join reader_handle thread");
 
         let _: Vec<()> = dispensers
             .into_iter()
@@ -111,11 +123,17 @@ impl CoffeeMachine {
                 .from_reader(io::stdin());
             for result in reader.records() {
                 println!("[Lector de pedidos] Tomando pedido");
-                let record = result.unwrap();
+                let record = result.expect("Failed to read record");
                 let order = Order::new(
-                    record[Ingredients::Coffee as usize].parse().unwrap(),
-                    record[Ingredients::Milk as usize].parse().unwrap(),
-                    record[Ingredients::Water as usize].parse().unwrap(),
+                    record[Ingredients::Coffee as usize]
+                        .parse()
+                        .expect("Failed to parse coffee"),
+                    record[Ingredients::Milk as usize]
+                        .parse()
+                        .expect("Failed to parse milk"),
+                    record[Ingredients::Water as usize]
+                        .parse()
+                        .expect("Failed to parse water"),
                 );
                 println!("[Lector de pedidos] Pedido tomado y anotado: {:?}", order);
                 blocking_queue_clone.push_back(order);
@@ -165,20 +183,19 @@ impl CoffeeMachine {
             let coffee_amount = order.get_coffee();
             let milk_amount = order.get_milk();
             let water_amount = order.get_water();
-            println!(
-                "[Dispenser {}] Recibió orden de café con: {} de café, {} leche espumada y {} de agua",
-                n_dispenser, coffee_amount, milk_amount, water_amount
-            );
+            println!("[Dispenser {}] Recibió orden de: {:?}", n_dispenser, order);
             if order.requires_coffee() {
                 let (lock, cvar) = &*ground_coffee_beans_container;
-                let mut ground_coffee_beans = lock.lock().unwrap();
+                let mut ground_coffee_beans =
+                    lock.lock().expect("Failed to lock ground_coffee_beans");
                 if !ground_coffee_beans.has_enough(coffee_amount) {
                     println!(
                         "[Dispenser {}] No hay suficientes {} granos de café para preparar la bebida",
                         n_dispenser, coffee_amount
                     );
-                    let coffee_beans_to_grind_container =
-                        coffee_beans_to_grind_container.lock().unwrap();
+                    let coffee_beans_to_grind_container = coffee_beans_to_grind_container
+                        .lock()
+                        .expect("Failed to lock coffee_beans_to_grind_container");
                     convert_coffee_beans_to_ground_beans(
                         &mut ground_coffee_beans,
                         &((*coffee_amount as f64 * 1.5) as u64),
@@ -202,13 +219,15 @@ impl CoffeeMachine {
 
             if order.requires_milk() {
                 let (lock, cvar) = &*milk_foam_container;
-                let mut milk_foam = lock.lock().unwrap();
+                let mut milk_foam = lock.lock().expect("Failed to lock milk_foam");
                 if !milk_foam.has_enough(milk_amount) {
                     println!(
                         "[Dispenser {}] No hay suficiente {} leche espumada para preparar la bebida",
                         n_dispenser, milk_amount
                     );
-                    let cold_milk_container = cold_milk_container.lock().unwrap();
+                    let cold_milk_container = cold_milk_container
+                        .lock()
+                        .expect("Failed to lock cold_milk_container");
                     convert_milk_to_foam_milk(
                         &mut milk_foam,
                         &((*milk_amount as f64 * 1.5) as u64),
@@ -236,7 +255,9 @@ impl CoffeeMachine {
             }
 
             println!("[Dispenser {}] Terminó de hacer café", n_dispenser);
-            let mut total_drinks = total_drinks_prepared.lock().unwrap();
+            let mut total_drinks = total_drinks_prepared
+                .lock()
+                .expect("Failed to lock total_drinks");
             *total_drinks += 1;
         }
     }
@@ -247,9 +268,13 @@ impl CoffeeMachine {
         loop {
             let (lock, cvar) = &*milk_foam_container;
             let mut milk_foam = cvar
-                .wait_while(lock.lock().unwrap(), |milk_foam| milk_foam.has_any())
-                .unwrap();
-            let cold_milk = cold_milk_container.lock().unwrap();
+                .wait_while(lock.lock().expect("Failed to obtain lock"), |milk_foam| {
+                    milk_foam.has_any()
+                })
+                .expect("Failed to wait for milk_foam");
+            let cold_milk = cold_milk_container
+                .lock()
+                .expect("Failed to lock cold_milk_container");
             let value_to_refill = 100;
             convert_milk_to_foam_milk(&mut milk_foam, &value_to_refill, cold_milk);
             cvar.notify_all();
@@ -262,11 +287,14 @@ impl CoffeeMachine {
         loop {
             let (lock, cvar) = &*ground_coffee_beans_container;
             let mut ground_coffee_beans = cvar
-                .wait_while(lock.lock().unwrap(), |ground_coffee_beans| {
-                    ground_coffee_beans.has_any()
-                })
-                .unwrap();
-            let coffee_beans_to_grind = coffee_beans_to_grind_container.lock().unwrap();
+                .wait_while(
+                    lock.lock().expect("Failed to obtain lock"),
+                    |ground_coffee_beans| ground_coffee_beans.has_any(),
+                )
+                .expect("Failed to wait for ground_coffee_beans");
+            let coffee_beans_to_grind = coffee_beans_to_grind_container
+                .lock()
+                .expect("Failed to lock coffee_beans_to_grind_container");
             let value_to_refill = 100;
             convert_coffee_beans_to_ground_beans(
                 &mut ground_coffee_beans,
@@ -291,10 +319,13 @@ impl CoffeeMachine {
         loop {
             let (lock, cvar) = &*ground_coffee_beans_container;
             let ground_coffee_beans = cvar
-                .wait_while(lock.lock().unwrap(), |ground_coffee_beans| {
-                    ground_coffee_beans.has_enough(&(COFFEE_BEANS_ALERT_THRESHOLD as u64))
-                })
-                .unwrap();
+                .wait_while(
+                    lock.lock().expect("Failed to obtain lock"),
+                    |ground_coffee_beans| {
+                        ground_coffee_beans.has_enough(&(COFFEE_BEANS_ALERT_THRESHOLD as u64))
+                    },
+                )
+                .expect("Failed to wait for ground_coffee_beans");
             println!(
                 "[Alerta de recursos: café] El nivel de granos de café es de {} (threshold de {}%)",
                 (*ground_coffee_beans).get_coffee_beans(),
@@ -316,10 +347,10 @@ impl CoffeeMachine {
         loop {
             let (lock, cvar) = &*milk_foam_container;
             let milk_foam = cvar
-                .wait_while(lock.lock().unwrap(), |milk_foam| {
+                .wait_while(lock.lock().expect("Failed to obtain lock"), |milk_foam| {
                     milk_foam.has_enough(&(MILK_FOAM_ALERT_THRESHOLD as u64))
                 })
-                .unwrap();
+                .expect("Failed to wait for milk_foam");
             println!(
                 "[Alerta de recursos: leche] El nivel de leche espumada es de {} (threshold de {}%)",
                 (*milk_foam).get_milk(),
@@ -344,7 +375,9 @@ impl CoffeeMachine {
         loop {
             let mut report = String::from("[Estadísticas] ");
             {
-                let total_drinks = total_drinks_prepared.lock().unwrap();
+                let total_drinks = total_drinks_prepared
+                    .lock()
+                    .expect("Failed to lock total_drinks");
                 report.push_str(&format!(
                     "Total de bebidas preparadas: {} || ",
                     total_drinks
@@ -352,7 +385,7 @@ impl CoffeeMachine {
             }
             {
                 let (lock, _cvar) = &*ground_coffee_beans_container;
-                let ground_coffee_beans = lock.lock().unwrap();
+                let ground_coffee_beans = lock.lock().expect("Failed to lock ground_coffee_beans");
                 report.push_str(&format!(
                     "Café molido actualmente: {} - Consumido: {} || ",
                     ground_coffee_beans.get_coffee_beans(),
@@ -360,7 +393,9 @@ impl CoffeeMachine {
                 ));
             }
             {
-                let coffee_beans_to_grind = coffee_beans_to_grind_container.lock().unwrap();
+                let coffee_beans_to_grind = coffee_beans_to_grind_container
+                    .lock()
+                    .expect("Failed to lock coffee_beans_to_grind");
                 report.push_str(&format!(
                     "Café en grano actualmente: {} - Consumido: {} || ",
                     coffee_beans_to_grind.get_beans(),
@@ -368,7 +403,9 @@ impl CoffeeMachine {
                 ));
             }
             {
-                let cold_milk = cold_milk_container.lock().unwrap();
+                let cold_milk = cold_milk_container
+                    .lock()
+                    .expect("Failed to lock cold_milk");
                 report.push_str(&format!(
                     "Leche fría actualmente: {} - Consumida: {} || ",
                     cold_milk.get_milk(),
@@ -377,7 +414,7 @@ impl CoffeeMachine {
             }
             {
                 let (lock, _cvar) = &*milk_foam_container;
-                let milk_foam = lock.lock().unwrap();
+                let milk_foam = lock.lock().expect("Failed to lock milk_foam");
                 report.push_str(&format!(
                     "Leche espumada actualmente: {} - Consumida: {} ",
                     milk_foam.get_milk(),
@@ -385,7 +422,7 @@ impl CoffeeMachine {
                 ));
             }
             println!("{}", report);
-            thread::sleep(Duration::from_secs(STATS_TIME));
+            thread::sleep(Duration::from_secs(STATS_UPDATE_TIME));
         }
     }
 }
