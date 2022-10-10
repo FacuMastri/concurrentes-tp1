@@ -34,5 +34,4 @@ impl<T> BlockingQueue<T> {
             .expect("Failed to wait while dequeue is empty");
         dequeue.pop_front().expect("Failed to pop front of dequeue")
     }
-
 }
