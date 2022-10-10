@@ -19,6 +19,8 @@ use constants::{
 };
 
 fn main() {
+    // TODO ver tema del shutdown, printear con colores (y separar en modulo), refactorizar la lectura y algo mas, ver si se puede testear algo
+    // TODO ver constantes de recarga de recursos cuando llega a 0
     let coffee_machine = CoffeeMachine::new();
     coffee_machine.start();
 }
