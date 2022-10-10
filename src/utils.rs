@@ -1,5 +1,5 @@
 #[derive(Clone, Copy, Debug)]
-pub enum Ingredients {
+pub enum Resource {
     Coffee = 0,
     Milk,
     Water,

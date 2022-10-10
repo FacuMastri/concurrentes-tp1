@@ -31,6 +31,9 @@ pub const BASE_TIME_RESOURCE_REFILL: u64 = (0.10 * BASE_TIME_RESOURCE_APPLICATIO
 
 /// Time (in seconds) between each coffee machine status update
 pub const STATS_UPDATE_INTERVAL: u64 = 5;
-
 /// Time (in milliseconds) between each order taken. This is used to simulate the arrival of a customer.
 pub const ORDER_TIME_INTERVAL_ARRIVAL: u64 = 2000;
+/// Time (in seconds) to wait during a **wait_timeout_while** before returning a result (if the condition is not met)
+///
+/// This is used to have some kind of mechanism to stop the execution of a thread when doing a graceful shutdown
+pub const CONDVAR_WAIT_TIMEOUT: u64 = 5;

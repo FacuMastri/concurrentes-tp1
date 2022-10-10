@@ -1,7 +1,7 @@
-use crate::constants::{COFFEE_TO_REFILL, MILK_TO_REFILL};
+use crate::constants::{COFFEE_TO_REFILL, CONDVAR_WAIT_TIMEOUT, MILK_TO_REFILL};
 use crate::container::Container;
 use crate::utils::converter::{refill_coffee, refill_milk};
-use crate::utils::Ingredients;
+use crate::utils::Resource;
 use crate::{
     BlockingQueue, Order, BASE_TIME_RESOURCE_APPLICATION, COFFEE_BEANS_ALERT_THRESHOLD,
     INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK, INITIAL_GROUND_COFFEE_BEANS,
@@ -83,39 +83,43 @@ impl CoffeeMachine {
         let coffee_machine_clone = self.clone();
 
         thread::spawn(move || {
-            let mut reader = csv::ReaderBuilder::new()
-                .has_headers(false)
-                .from_reader(io::stdin());
-            for result in reader.records() {
-                println!("[Lector de pedidos] Tomando pedido");
-                let record = result.expect("Failed to read record");
-                let order = Order::new(
-                    record[Ingredients::Coffee as usize]
-                        .parse()
-                        .expect("Failed to parse coffee"),
-                    record[Ingredients::Milk as usize]
-                        .parse()
-                        .expect("Failed to parse milk"),
-                    record[Ingredients::Water as usize]
-                        .parse()
-                        .expect("Failed to parse water"),
-                );
-                println!("[Lector de pedidos] Pedido tomado y anotado: {}", order);
-                coffee_machine_clone.blocking_queue.push_back(order);
-                // Sleep para simular que todos los pedidos no llegan de inmediato. Similar a clientes.
-                thread::sleep(Duration::from_millis(ORDER_TIME_INTERVAL_ARRIVAL));
-            }
-            // Para finalizar el programa y hacer un shutdown, debo comunicarle a los dispensadores que ya no hay más pedidos.
+            coffee_machine_clone.read_order_wrapper();
             println!("[Lector de pedidos] No hay más pedidos para leer");
-            for _ in 0..MAX_DISPENSERS {
-                coffee_machine_clone
-                    .blocking_queue
-                    .push_back(Order::new(0, 0, 0));
-            }
-            coffee_machine_clone
-                .should_shutdown
-                .store(true, Ordering::Relaxed);
+            coffee_machine_clone.prepare_shutdown();
         })
+    }
+
+    fn prepare_shutdown(self: &Arc<CoffeeMachine>) {
+        // Para finalizar el programa y hacer un shutdown, debo comunicarle a los dispensadores que ya no hay más pedidos.
+        for _ in 0..MAX_DISPENSERS {
+            self.blocking_queue.push_back(Order::new(0, 0, 0));
+        }
+        self.should_shutdown.store(true, Ordering::Relaxed);
+    }
+
+    fn read_order_wrapper(self: &Arc<Self>) {
+        let mut reader = csv::ReaderBuilder::new()
+            .has_headers(false)
+            .from_reader(io::stdin());
+        for result in reader.records() {
+            println!("[Lector de pedidos] Tomando pedido");
+            let record = result.expect("Failed to read record");
+            let order = Order::new(
+                record[Resource::Coffee as usize]
+                    .parse()
+                    .expect("Failed to parse coffee"),
+                record[Resource::Milk as usize]
+                    .parse()
+                    .expect("Failed to parse milk"),
+                record[Resource::Water as usize]
+                    .parse()
+                    .expect("Failed to parse water"),
+            );
+            println!("[Lector de pedidos] Pedido tomado y anotado: {}", order);
+            self.blocking_queue.push_back(order);
+            // Sleep para simular que todos los pedidos no llegan de inmediato. Similar a clientes.
+            thread::sleep(Duration::from_millis(ORDER_TIME_INTERVAL_ARRIVAL));
+        }
     }
 
     fn prepare_orders(self: &Arc<Self>) -> Vec<JoinHandle<()>> {
@@ -234,7 +238,7 @@ impl CoffeeMachine {
             let (mut milk_foam, timeout_result) = cvar
                 .wait_timeout_while(
                     lock.lock().expect("Failed to obtain lock"),
-                    Duration::from_secs(5),
+                    Duration::from_secs(CONDVAR_WAIT_TIMEOUT),
                     |milk_foam| milk_foam.has_any(),
                 )
                 .expect("Failed to wait for milk_foam");
@@ -257,7 +261,7 @@ impl CoffeeMachine {
             let (mut ground_coffee_beans, timeout_result) = cvar
                 .wait_timeout_while(
                     lock.lock().expect("Failed to obtain lock"),
-                    Duration::from_secs(5),
+                    Duration::from_secs(CONDVAR_WAIT_TIMEOUT),
                     |ground_coffee_beans| ground_coffee_beans.has_any(),
                 )
                 .expect("Failed to wait for ground_coffee_beans");
@@ -293,7 +297,7 @@ impl CoffeeMachine {
             let (ground_coffee_beans, timeout_result) = cvar
                 .wait_timeout_while(
                     lock.lock().expect("Failed to obtain lock"),
-                    Duration::from_secs(5),
+                    Duration::from_secs(CONDVAR_WAIT_TIMEOUT),
                     |ground_coffee_beans| {
                         ground_coffee_beans.has_enough(&(COFFEE_BEANS_ALERT_THRESHOLD as u64))
                     },
@@ -325,7 +329,7 @@ impl CoffeeMachine {
             let (milk_foam, timeout_result) = cvar
                 .wait_timeout_while(
                     lock.lock().expect("Failed to obtain lock"),
-                    Duration::from_secs(5),
+                    Duration::from_secs(CONDVAR_WAIT_TIMEOUT),
                     |milk_foam| milk_foam.has_enough(&(MILK_FOAM_ALERT_THRESHOLD as u64)),
                 )
                 .expect("Failed to wait for milk_foam");
