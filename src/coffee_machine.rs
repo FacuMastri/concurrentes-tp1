@@ -82,7 +82,7 @@ impl CoffeeMachine {
 
     pub fn start(self: &Arc<Self>) {
         let reader_handle = self.read_orders();
-        let dispensers = self.create_dispensers();
+        let dispensers = self.prepare_orders();
         let milk_refill = self.refill_milk();
         let coffee_refill = self.refill_coffee();
         let alert_system_for_coffee_beans = self.alert_for_coffee_beans();
@@ -148,7 +148,7 @@ impl CoffeeMachine {
         })
     }
 
-    fn create_dispensers(self: &Arc<Self>) -> Vec<JoinHandle<()>> {
+    fn prepare_orders(self: &Arc<Self>) -> Vec<JoinHandle<()>> {
         #[allow(clippy::needless_collect)]
         let dispensers: Vec<JoinHandle<()>> = (1..MAX_DISPENSERS + 1)
             .map(|i| {
@@ -254,7 +254,7 @@ impl CoffeeMachine {
                 println!("[Dispenser {}] Terminó de aplicar agua", n_dispenser);
             }
 
-            println!("[Dispenser {}] Terminó de hacer café", n_dispenser);
+            println!("[Dispenser {}] Terminó de preparar bebida", n_dispenser);
             let mut total_drinks = total_drinks_prepared
                 .lock()
                 .expect("Failed to lock total_drinks");
