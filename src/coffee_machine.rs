@@ -1,7 +1,7 @@
 use crate::constants::{COFFEE_TO_REFILL, MILK_TO_REFILL};
+use crate::container::Container;
 use crate::{
-    BlockingQueue, CoffeeBeansToGrindContainer, ColdMilkContainer, GroundCoffeeBeansContainer,
-    MilkFoamContainer, Order, BASE_TIME_RESOURCE_APPLICATION, BASE_TIME_RESOURCE_REFILL,
+    BlockingQueue, Order, BASE_TIME_RESOURCE_APPLICATION, BASE_TIME_RESOURCE_REFILL,
     COFFEE_BEANS_ALERT_THRESHOLD, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK,
     INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, MILK_FOAM_ALERT_THRESHOLD,
     ORDER_TIME_INTERVAL_ARRIVAL, RESOURCE_ALERT_FACTOR, STATS_UPDATE_INTERVAL,
@@ -13,9 +13,9 @@ use std::time::Duration;
 use std::{io, thread};
 
 fn convert_coffee_beans_to_ground_beans(
-    ground_coffee_beans: &mut MutexGuard<GroundCoffeeBeansContainer>,
+    ground_coffee_beans_container: &mut MutexGuard<Container>,
     value_to_refill: &u64,
-    mut coffee_beans_to_grind: MutexGuard<CoffeeBeansToGrindContainer>,
+    mut coffee_beans_to_grind_container: MutexGuard<Container>,
 ) {
     println!(
         "[Refill de café] Convirtiendo {} de granos para moler a granos molidos",
@@ -24,15 +24,15 @@ fn convert_coffee_beans_to_ground_beans(
     thread::sleep(Duration::from_millis(
         BASE_TIME_RESOURCE_REFILL * value_to_refill,
     ));
-    coffee_beans_to_grind.grind(value_to_refill);
-    ground_coffee_beans.add(value_to_refill);
+    coffee_beans_to_grind_container.subtract(value_to_refill);
+    ground_coffee_beans_container.add(value_to_refill);
     println!("[Refill de café] Terminó de convertir granos de café");
 }
 
 fn convert_milk_to_foam_milk(
-    milk_foam_container: &mut MutexGuard<MilkFoamContainer>,
+    milk_foam_container: &mut MutexGuard<Container>,
     value_to_refill: &u64,
-    mut cold_milk_container: MutexGuard<ColdMilkContainer>,
+    mut cold_milk_container: MutexGuard<Container>,
 ) {
     println!(
         "[Refill de leche espumada] Convirtiendo {} de leche a leche espumada",
@@ -54,10 +54,10 @@ enum Ingredients {
 }
 
 pub struct CoffeeMachine {
-    coffee_beans_to_grind_container: Arc<Mutex<CoffeeBeansToGrindContainer>>,
-    ground_coffee_beans_container: Arc<(Mutex<GroundCoffeeBeansContainer>, Condvar)>,
-    cold_milk_container: Arc<Mutex<ColdMilkContainer>>,
-    milk_foam_container: Arc<(Mutex<MilkFoamContainer>, Condvar)>,
+    coffee_beans_to_grind_container: Arc<Mutex<Container>>,
+    ground_coffee_beans_container: Arc<(Mutex<Container>, Condvar)>,
+    cold_milk_container: Arc<Mutex<Container>>,
+    milk_foam_container: Arc<(Mutex<Container>, Condvar)>,
     total_drinks_prepared: Arc<Mutex<u64>>,
     blocking_queue: Arc<BlockingQueue<Order>>,
     should_shutdown: Arc<AtomicBool>,
@@ -66,16 +66,16 @@ pub struct CoffeeMachine {
 impl CoffeeMachine {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
-            coffee_beans_to_grind_container: Arc::new(Mutex::new(
-                CoffeeBeansToGrindContainer::new(INITIAL_COFFEE_BEANS_TO_GRIND),
-            )),
+            coffee_beans_to_grind_container: Arc::new(Mutex::new(Container::new(
+                INITIAL_COFFEE_BEANS_TO_GRIND,
+            ))),
             ground_coffee_beans_container: Arc::new((
-                Mutex::new(GroundCoffeeBeansContainer::new(INITIAL_GROUND_COFFEE_BEANS)),
+                Mutex::new(Container::new(INITIAL_GROUND_COFFEE_BEANS)),
                 Condvar::new(),
             )),
-            cold_milk_container: Arc::new(Mutex::new(ColdMilkContainer::new(INITIAL_COLD_MILK))),
+            cold_milk_container: Arc::new(Mutex::new(Container::new(INITIAL_COLD_MILK))),
             milk_foam_container: Arc::new((
-                Mutex::new(MilkFoamContainer::new(INITIAL_MILK_FOAM)),
+                Mutex::new(Container::new(INITIAL_MILK_FOAM)),
                 Condvar::new(),
             )),
             total_drinks_prepared: Arc::new(Mutex::new(0)),
@@ -343,7 +343,7 @@ impl CoffeeMachine {
             }
             println!(
                 "[Alerta de recursos: café] El nivel de granos de café es de {} (threshold de {}%)",
-                (*ground_coffee_beans).get_coffee_beans(),
+                (*ground_coffee_beans).get_current_amount(),
                 RESOURCE_ALERT_FACTOR * 100.0
             );
         }
@@ -373,7 +373,7 @@ impl CoffeeMachine {
             }
             println!(
                 "[Alerta de recursos: leche] El nivel de leche espumada es de {} (threshold de {}%)",
-                (*milk_foam).get_milk(),
+                (*milk_foam).get_current_amount(),
                 RESOURCE_ALERT_FACTOR * 100.0
             );
         }
@@ -404,7 +404,7 @@ impl CoffeeMachine {
                 let ground_coffee_beans = lock.lock().expect("Failed to lock ground_coffee_beans");
                 report.push_str(&format!(
                     "Café molido actualmente: {} - Consumido: {} || ",
-                    ground_coffee_beans.get_coffee_beans(),
+                    ground_coffee_beans.get_current_amount(),
                     ground_coffee_beans.get_amount_used()
                 ));
             }
@@ -415,7 +415,7 @@ impl CoffeeMachine {
                     .expect("Failed to lock coffee_beans_to_grind");
                 report.push_str(&format!(
                     "Café en grano actualmente: {} - Consumido: {} || ",
-                    coffee_beans_to_grind.get_beans(),
+                    coffee_beans_to_grind.get_current_amount(),
                     coffee_beans_to_grind.get_amount_used()
                 ));
             }
@@ -426,7 +426,7 @@ impl CoffeeMachine {
                     .expect("Failed to lock cold_milk");
                 report.push_str(&format!(
                     "Leche fría actualmente: {} - Consumida: {} || ",
-                    cold_milk.get_milk(),
+                    cold_milk.get_current_amount(),
                     cold_milk.get_amount_used()
                 ));
             }
@@ -435,7 +435,7 @@ impl CoffeeMachine {
                 let milk_foam = lock.lock().expect("Failed to lock milk_foam");
                 report.push_str(&format!(
                     "Leche espumada actualmente: {} - Consumida: {} ",
-                    milk_foam.get_milk(),
+                    milk_foam.get_current_amount(),
                     milk_foam.get_amount_used()
                 ));
             }

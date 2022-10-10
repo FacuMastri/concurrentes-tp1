@@ -14,9 +14,9 @@ pub const COFFEE_BEANS_ALERT_THRESHOLD: f64 =
 /// Milk foam alert threshold, used to trigger an alert when the amount of milk foam is below this threshold
 pub const MILK_FOAM_ALERT_THRESHOLD: f64 = INITIAL_MILK_FOAM as f64 * RESOURCE_ALERT_FACTOR;
 
-/// Maximum amount (capacity) of a coffee beans to grind container
+/// Maximum amount (capacity) of a coffee beans to grind container. This value should be high enough to handle all possible drink orders in case of refill
 pub const INITIAL_COFFEE_BEANS_TO_GRIND: u64 = 100000;
-/// Maximum amount (capacity) of a cold milk container
+/// Maximum amount (capacity) of a cold milk container. This value should be high enough to handle all possible drink orders in case of refill
 pub const INITIAL_COLD_MILK: u64 = 100000;
 
 /// Amount of milk to refill into a milk foam container from a cold milk container when it is empty

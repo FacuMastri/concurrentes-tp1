@@ -1,15 +1,13 @@
 mod blocking_queue;
 mod coffee_machine;
 mod constants;
-mod containers;
+mod container;
 mod order;
 
 use crate::coffee_machine::CoffeeMachine;
 use crate::constants::{
     BASE_TIME_RESOURCE_REFILL, COFFEE_BEANS_ALERT_THRESHOLD, MILK_FOAM_ALERT_THRESHOLD,
 };
-use crate::containers::coffee_beans::{CoffeeBeansToGrindContainer, GroundCoffeeBeansContainer};
-use crate::containers::milk::{ColdMilkContainer, MilkFoamContainer};
 use crate::order::Order;
 use blocking_queue::BlockingQueue;
 use constants::{
