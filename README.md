@@ -14,7 +14,7 @@ reservada para indicar el fin de los pedidos.
 
     cargo run < <ruta-pedidos-csv>
 
-Por ejemplo:
+Por ejemplo, si nos encontramos en el root del proyecto:
 
     cargo run < src/orders/orders.csv
 

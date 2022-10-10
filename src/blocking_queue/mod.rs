@@ -1,6 +1,9 @@
 use std::collections::*;
 use std::sync::*;
 
+/// Basic implementation of a blocking queue using a dequeue, a mutex and a condition variable.
+/// The queue is blocking when it is empty and the consumer tries to pop an element.
+/// This implementation is using an unbounded queue.
 #[derive(Debug)]
 pub struct BlockingQueue<T> {
     dequeue: Mutex<VecDeque<T>>,
@@ -16,7 +19,7 @@ impl<T> BlockingQueue<T> {
         }
     }
 
-    /// Push input on back of queue
+    /// Push value on back of queue
     pub fn push_back(&self, value: T) {
         let mut dequeue = self.dequeue.lock().expect("Failed to lock dequeue");
         dequeue.push_back(value);
