@@ -3,13 +3,14 @@ use crate::{
     MilkFoamContainer, Order, BASE_TIME_RESOURCE_APPLICATION, BASE_TIME_RESOURCE_REFILL,
     COFFEE_BEANS_ALERT_THRESHOLD, INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK,
     INITIAL_GROUND_COFFEE_BEANS, INITIAL_MILK_FOAM, MAX_DISPENSERS, MILK_FOAM_ALERT_THRESHOLD,
-    ORDER_TIME_ARRIVAL, RESOURCE_ALERT_FACTOR, STATS_UPDATE_TIME,
+    ORDER_TIME_INTERVAL_ARRIVAL, RESOURCE_ALERT_FACTOR, STATS_UPDATE_INTERVAL,
 };
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::Duration;
 use std::{io, thread};
 use std::sync::atomic::{AtomicBool, Ordering};
+use crate::constants::{COFFEE_TO_REFILL, MILK_TO_REFILL};
 
 fn convert_coffee_beans_to_ground_beans(
     ground_coffee_beans: &mut MutexGuard<GroundCoffeeBeansContainer>,
@@ -141,7 +142,7 @@ impl CoffeeMachine {
                 println!("[Lector de pedidos] Pedido tomado y anotado: {}", order);
                 coffee_machine_clone.blocking_queue.push_back(order);
                 // Sleep para simular que todos los pedidos no llegan de inmediato. Similar a clientes.
-                thread::sleep(Duration::from_millis(ORDER_TIME_ARRIVAL));
+                thread::sleep(Duration::from_millis(ORDER_TIME_INTERVAL_ARRIVAL));
             }
             // Para finalizar el programa y hacer un shutdown, debo comunicarle a los dispensadores que ya no hay más pedidos.
             println!("[Lector de pedidos] No hay más pedidos para leer");
@@ -273,8 +274,7 @@ impl CoffeeMachine {
             let cold_milk = self.cold_milk_container
                 .lock()
                 .expect("Failed to lock cold_milk_container");
-            let value_to_refill = 100;
-            convert_milk_to_foam_milk(&mut milk_foam.0, &value_to_refill, cold_milk);
+            convert_milk_to_foam_milk(&mut milk_foam.0, &MILK_TO_REFILL, cold_milk);
             cvar.notify_all();
         }
         println!("[Refill de leche espumada] Apagando refill de leche espumada");
@@ -295,10 +295,9 @@ impl CoffeeMachine {
             let coffee_beans_to_grind = self.coffee_beans_to_grind_container
                 .lock()
                 .expect("Failed to lock coffee_beans_to_grind_container");
-            let value_to_refill = 100;
             convert_coffee_beans_to_ground_beans(
                 &mut ground_coffee_beans.0,
-                &value_to_refill,
+                &COFFEE_TO_REFILL,
                 coffee_beans_to_grind,
             );
             cvar.notify_all();
@@ -423,7 +422,7 @@ impl CoffeeMachine {
                 ));
             }
             println!("{}", report);
-            thread::sleep(Duration::from_secs(STATS_UPDATE_TIME));
+            thread::sleep(Duration::from_secs(STATS_UPDATE_INTERVAL));
         }
         println!("[Estadísticas] Apagando informe del sistema");
     }

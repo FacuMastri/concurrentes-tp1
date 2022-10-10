@@ -11,7 +11,7 @@ pub const RESOURCE_ALERT_FACTOR: f64 = 0.2;
 /// Coffee beans alert threshold, used to trigger a console alert when the amount of coffee beans is below this threshold
 pub const COFFEE_BEANS_ALERT_THRESHOLD: f64 =
     INITIAL_GROUND_COFFEE_BEANS as f64 * RESOURCE_ALERT_FACTOR;
-/// Milk foam alert threshold, used to trigger a console alert when the amount of milk foam is below this threshold
+/// Milk foam alert threshold, used to trigger an alert when the amount of milk foam is below this threshold
 pub const MILK_FOAM_ALERT_THRESHOLD: f64 = INITIAL_MILK_FOAM as f64 * RESOURCE_ALERT_FACTOR;
 
 /// Maximum amount (capacity) of a coffee beans to grind container
@@ -19,13 +19,18 @@ pub const INITIAL_COFFEE_BEANS_TO_GRIND: u64 = 100000;
 /// Maximum amount (capacity) of a cold milk container
 pub const INITIAL_COLD_MILK: u64 = 100000;
 
+/// Amount of milk to refill into a milk foam container from a cold milk container when it is empty
+pub const MILK_TO_REFILL: u64 = 100;
+/// Amount of coffee beans to grind into a ground coffee beans container from a coffee beans container when it is empty
+pub const COFFEE_TO_REFILL: u64 = 100;
+
 /// Time (in milliseconds) to apply a resource
 pub const BASE_TIME_RESOURCE_APPLICATION: u64 = 500;
 /// Time (in milliseconds) to refill a resource
 pub const BASE_TIME_RESOURCE_REFILL: u64 = (0.10 * BASE_TIME_RESOURCE_APPLICATION as f64) as u64;
 
 /// Time (in seconds) between each coffee machine status update
-pub const STATS_UPDATE_TIME: u64 = 5;
+pub const STATS_UPDATE_INTERVAL: u64 = 5;
 
 /// Time (in milliseconds) between each order taken. This is used to simulate the arrival of a customer.
-pub const ORDER_TIME_ARRIVAL: u64 = 2000;
+pub const ORDER_TIME_INTERVAL_ARRIVAL: u64 = 2000;
