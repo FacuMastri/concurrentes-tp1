@@ -1,4 +1,6 @@
-#[derive(Clone, Copy, Debug)]
+use std::fmt::Display;
+
+#[derive(Clone, Copy)]
 pub struct Order {
     water: u64,
     coffee: u64,
@@ -40,5 +42,15 @@ impl Order {
 
     pub fn is_empty(&self) -> bool {
         self.water == 0 && self.coffee == 0 && self.milk == 0
+    }
+}
+
+impl Display for Order {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Order {{ cantidad_cafe: {}, cantidad_leche: {}, cantidad_agua: {} }}",
+            self.water, self.coffee, self.milk
+        )
     }
 }
