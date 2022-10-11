@@ -17,6 +17,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 use std::{io, thread};
 
+/// Represents a coffee machine, with its corresponding containers and dispensers
 pub struct CoffeeMachine {
     coffee_beans_to_grind_container: Arc<Mutex<Container>>,
     ground_coffee_beans_container: Arc<(Mutex<Container>, Condvar)>,
@@ -28,6 +29,7 @@ pub struct CoffeeMachine {
 }
 
 impl CoffeeMachine {
+    /// Creates a new coffee machine
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             coffee_beans_to_grind_container: Arc::new(Mutex::new(Container::new(
@@ -48,6 +50,15 @@ impl CoffeeMachine {
         })
     }
 
+    /// Public interface to start the coffee machine
+    /// This method will start the following threads:
+    /// - A thread to take the orders
+    /// - A thread to prepare the orders
+    /// - A thread to inform the stats
+    /// - A thread to alert about coffee beans when under certain threshold
+    /// - A thread to alert about milk foam when under certain threshold
+    /// - A thread to handle the refill of coffee beans
+    /// - A thread to handle the refill of milk foam
     pub fn start(self: &Arc<Self>) {
         let reader_handle = self.read_orders();
         let dispensers = self.prepare_orders();
@@ -62,7 +73,8 @@ impl CoffeeMachine {
             .flat_map(|dispenser| dispenser.join())
             .collect();
 
-        // Debo avisarle a los threads que deben finalizar.
+        // Debo avisarle a los threads que deben finalizar una vez que todos los threads terminaron
+        // sus pedidos.
         self.should_shutdown.store(true, Ordering::Relaxed);
 
         coffee_refill
@@ -88,6 +100,8 @@ impl CoffeeMachine {
         println!("{}", report);
     }
 
+    /// Reads the orders from the standard input
+    /// This method will start a thread that will read the orders from the standard input
     fn read_orders(self: &Arc<Self>) -> JoinHandle<()> {
         let coffee_machine_clone = self.clone();
 
@@ -97,17 +111,21 @@ impl CoffeeMachine {
                 "{}[Lector de pedidos]{} - No hay más pedidos para leer",
                 COLOR_BLUE, COLOR_RESET
             );
-            coffee_machine_clone.prepare_shutdown();
+            coffee_machine_clone.send_shutdown_message();
         })
     }
 
-    fn prepare_shutdown(self: &Arc<Self>) {
+    /// Sends a shutdown message to the blocking queue, in order to notify the dispensers
+    /// that they should stop
+    fn send_shutdown_message(self: &Arc<Self>) {
         // Para finalizar el programa y hacer un shutdown, debo comunicarle a los dispensadores que ya no hay más pedidos.
         for _ in 0..MAX_DISPENSERS {
             self.blocking_queue.push_back(Message::Shutdown);
         }
     }
 
+    /// Reads the orders from the standard input
+    /// This method will read the orders from the standard input and send them to the blocking queue
     fn read_orders_wrapper(self: &Arc<Self>) {
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(false)
@@ -139,6 +157,9 @@ impl CoffeeMachine {
         }
     }
 
+    /// Prepares the orders
+    /// This method will start a number of threads that will prepare the orders
+    /// The number of threads is defined by the constant MAX_DISPENSERS
     fn prepare_orders(self: &Arc<Self>) -> Vec<JoinHandle<()>> {
         #[allow(clippy::needless_collect)]
         let dispensers: Vec<JoinHandle<()>> = (1..MAX_DISPENSERS + 1)
@@ -152,6 +173,9 @@ impl CoffeeMachine {
         dispensers
     }
 
+    /// Prepares a drink
+    /// This method will prepare a drink, using the resources from the containers
+    /// If there is not enough resources, the thread will refill the containers accordingly
     fn make_drink(self: &Arc<Self>, n_dispenser: u64) {
         loop {
             let order = self.blocking_queue.pop_front();
@@ -178,6 +202,8 @@ impl CoffeeMachine {
         }
     }
 
+    /// Prepares a drink
+    /// This method will prepare a drink, using the resources from the containers
     fn prepare_drink(&self, order: Order, n_dispenser: u64) {
         let coffee_amount = order.get_coffee();
         let milk_amount = order.get_milk();
@@ -198,6 +224,7 @@ impl CoffeeMachine {
         self.increase_drinks_prepared();
     }
 
+    /// Increases the number of drinks prepared
     fn increase_drinks_prepared(&self) {
         let mut total_drinks = self
             .total_drinks_prepared
@@ -206,6 +233,7 @@ impl CoffeeMachine {
         *total_drinks += 1;
     }
 
+    /// Serves water to the drink
     fn serve_water(&self, water_amount: &u64, n_dispenser: u64) {
         println!(
             "{}[Dispenser {}]{} - Aplicando agua",
@@ -220,6 +248,9 @@ impl CoffeeMachine {
         );
     }
 
+    /// Serves milk to the drink
+    /// This method will serve milk to the drink, if there is enough milk in the container
+    /// If there is not enough milk, the method will refill the container
     fn serve_milk(&self, milk_amount: &u64, n_dispenser: u64) {
         let (lock, cvar) = &*self.milk_foam_container;
         let mut milk_foam = lock.lock().expect("Failed to lock milk_foam");
@@ -253,6 +284,9 @@ impl CoffeeMachine {
         cvar.notify_all();
     }
 
+    /// Serves coffee to the drink
+    /// This method will serve coffee to the drink, if there is enough coffee in the container
+    /// If there is not enough coffee, the method will refill the container
     fn serve_coffee(&self, coffee_amount: &u64, n_dispenser: u64) {
         let (lock, cvar) = &*self.ground_coffee_beans_container;
         let mut ground_coffee_beans = lock.lock().expect("Failed to lock ground_coffee_beans");
@@ -286,6 +320,8 @@ impl CoffeeMachine {
         cvar.notify_all();
     }
 
+    /// Refills the milk container
+    /// This method will refill the milk container, using the cold milk container
     fn transform_milk(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.milk_foam_container;
@@ -312,6 +348,8 @@ impl CoffeeMachine {
         );
     }
 
+    /// Refills the coffee container
+    /// This method will refill the coffee container, using the coffee beans to grind container
     fn transform_coffee(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.ground_coffee_beans_container;
@@ -342,15 +380,21 @@ impl CoffeeMachine {
         );
     }
 
+    /// Spawns a thread that will refill the milk container
     fn refill_milk(self: &Arc<Self>) -> JoinHandle<()> {
         let coffee_machine_clone = self.clone();
         thread::spawn(move || coffee_machine_clone.transform_milk())
     }
+
+    /// Spawns a thread that will refill the coffee container
     fn refill_coffee(self: &Arc<Self>) -> JoinHandle<()> {
         let coffee_machine_clone = self.clone();
         thread::spawn(move || coffee_machine_clone.transform_coffee())
     }
 
+    /// Informs about the current status of the ground coffee beans container
+    /// This method will print the current status of the ground coffee beans container
+    /// It will print the current amount of coffee in the container when it is under the threshold
     fn inform_about_coffee_beans(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.ground_coffee_beans_container;
@@ -377,15 +421,20 @@ impl CoffeeMachine {
             COLOR_RED, COLOR_RESET
         );
     }
+    /// Spawns a thread that will inform about the current status of the ground coffee beans container
     fn alert_for_coffee(self: &Arc<Self>) -> JoinHandle<()> {
         let coffee_machine_clone = self.clone();
         thread::spawn(move || coffee_machine_clone.inform_about_coffee_beans())
     }
+    /// Spawns a thread that will inform about the current status of the milk foam container
     fn alert_for_milk(self: &Arc<Self>) -> JoinHandle<()> {
         let coffee_machine_clone = self.clone();
         thread::spawn(move || coffee_machine_clone.inform_about_milk_foam())
     }
 
+    /// Informs about the current status of the milk foam container
+    /// This method will print the current status of the milk foam container
+    /// It will print the current amount of milk in the container when it is under the threshold
     fn inform_about_milk_foam(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
             let (lock, cvar) = &*self.milk_foam_container;
@@ -411,11 +460,13 @@ impl CoffeeMachine {
         );
     }
 
+    /// Spawns a thread that will inform about the statistic of the coffee machine
     fn inform_system(self: &Arc<Self>) -> JoinHandle<()> {
         let coffee_machine_clone = self.clone();
         thread::spawn(move || coffee_machine_clone.inform_stats())
     }
 
+    /// Informs about the statistic of the coffee machine
     fn inform_stats(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
             let report = self.obtain_stats();
@@ -429,6 +480,9 @@ impl CoffeeMachine {
     }
 
     #[allow(clippy::format_push_string)]
+    /// Obtains the statistic of the coffee machine
+    /// This method will return a string with the statistic of the coffee machine
+    /// It will return the amount of coffee, coffee beans, milk and milk foam that has been used
     fn obtain_stats(&self) -> String {
         let mut report = String::from("\x1b[33m[Estadísticas]\x1b[0m - ");
         {

@@ -1,12 +1,14 @@
 use crate::Order;
 
 #[derive(Clone, Copy, Debug)]
+/// Represents the amount of resources in the coffee machine.
 pub enum Resource {
     Coffee = 0,
     Milk,
     Water,
 }
 
+/// Useful for the coffee machine to know if an order has arrived or if it should shutdown.
 pub enum Message {
     Job(Order),
     Shutdown,
@@ -20,6 +22,7 @@ pub mod converter {
     use std::thread;
     use std::time::Duration;
 
+    /// Refills the given container with the given amount from the given container.
     fn refill_container(
         from_container: &mut MutexGuard<Container>,
         value_to_refill: &u64,
@@ -32,6 +35,7 @@ pub mod converter {
         to_container.add(value_to_refill);
     }
 
+    /// Refills the given coffee container with the given amount from coffee beans container.
     pub fn refill_coffee(
         ground_coffee_beans_container: &mut MutexGuard<Container>,
         value_to_refill: &u64,
@@ -52,6 +56,7 @@ pub mod converter {
         );
     }
 
+    /// Refills the given milk container with the given amount from cold milk container.
     pub fn refill_milk(
         milk_foam_container: &mut MutexGuard<Container>,
         value_to_refill: &u64,

@@ -18,9 +18,6 @@ use constants::{
 };
 
 fn main() {
-    // TODO ver si se puede testear algo
-    // TODO ver una cosa de las hipotesis
-    // TODO agregar las docs de structs
     let coffee_machine = CoffeeMachine::new();
     coffee_machine.start();
 }

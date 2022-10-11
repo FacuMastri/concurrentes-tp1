@@ -7,12 +7,16 @@
 ## Ejecución
 
 La aplicación lee por `stdin` la ruta específica por donde tomar un archivo `.csv`que contenga los pedidos de bebidas.
+La idea era que la posibilidad
+de cambiar de distintos archivos sea rápida, en lugar de tener que cambiar el valor de alguna constante en el código con
+la ruta del archivo en cuestión.
 El archivo en cuestión no debe tener headers, y el orden de las columnas debe ser el
 siguiente: `cantidad_cafe | cantidad_leche | cantidad_agua`.
 Es necesario que el archivo siempre tenga la misma cantidad de columnas, y que cada una de ellas contenga un número
 entero positivo.
 Por ejemplo, (0,1,2), (1,2,3), (1,0,1), (0,0,1), (1,0,0), (0,1,0) son líneas válidas.
-cargo run < <ruta-pedidos-csv>
+
+    cargo run < <ruta-pedidos-csv>
 
 Por ejemplo, si nos encontramos en el root del proyecto:
 
@@ -22,7 +26,8 @@ Por ejemplo, si nos encontramos en el root del proyecto:
 
 Las hipótesis y supuestos tomados para el desarrollo del presente trabajo práctico fueron:
 
-- La capacidad de los contenedores de granos de café para moler y de leche fría para convertir en leche espumada debe ser suficiente (configurable) para satisfacer todos los pedidos.
+- La capacidad de los contenedores de granos de café para moler y de leche fría para convertir en leche espumada debe
+  ser suficiente (configurable) para satisfacer todos los pedidos.
 - Cuando no se tiene los recursos necesarios para satisfacer un pedido, el correspondiente contenedor de granos de café o de leche fría reabastece los contenedores principales
 con un factor de reabastecimiento configurable para no tener que reabastece cada vez que se necesite un recurso. Esto confronta de alguna manera con el requerimiento de
 "_Cuando el contenedor de cafe molido se agota, el molinillo automático toma una cantidad de granos y los convierte en café molido._", 

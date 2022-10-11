@@ -1,5 +1,5 @@
 /// Maximum amount of dispensers a coffee machine can have
-pub const MAX_DISPENSERS: u64 = 3;
+pub const MAX_DISPENSERS: u64 = 4;
 
 /// Maximum amount (capacity) of a milk foam container
 pub const INITIAL_MILK_FOAM: u64 = 100;
