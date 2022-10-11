@@ -3,13 +3,14 @@ use crate::constants::{
     COLOR_YELLOW, CONDVAR_WAIT_TIMEOUT, MILK_TO_REFILL,
 };
 use crate::container::Container;
+use crate::order_reader::OrderReader;
 use crate::utils::converter::{refill_coffee, refill_milk};
-use crate::utils::{Message, Resource};
+use crate::utils::Message;
 use crate::{
     BlockingQueue, Order, BASE_TIME_RESOURCE_APPLICATION, COFFEE_BEANS_ALERT_THRESHOLD,
     INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK, INITIAL_GROUND_COFFEE_BEANS,
-    INITIAL_MILK_FOAM, MAX_DISPENSERS, MILK_FOAM_ALERT_THRESHOLD, ORDER_TIME_INTERVAL_ARRIVAL,
-    RESOURCE_ALERT_FACTOR, STATS_UPDATE_INTERVAL,
+    INITIAL_MILK_FOAM, MAX_DISPENSERS, MILK_FOAM_ALERT_THRESHOLD, RESOURCE_ALERT_FACTOR,
+    STATS_UPDATE_INTERVAL,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -118,7 +119,7 @@ impl CoffeeMachine {
     /// Sends a shutdown message to the blocking queue, in order to notify the dispensers
     /// that they should stop
     fn send_shutdown_message(self: &Arc<Self>) {
-        // Para finalizar el programa y hacer un shutdown, debo comunicarle a los dispensadores que ya no hay más pedidos.
+        // Para finalizar el programa y hacer un shutdown, debo comunicarle a los dispensers que ya no hay más pedidos.
         for _ in 0..MAX_DISPENSERS {
             self.blocking_queue.push_back(Message::Shutdown);
         }
@@ -127,34 +128,8 @@ impl CoffeeMachine {
     /// Reads the orders from the standard input
     /// This method will read the orders from the standard input and send them to the blocking queue
     fn read_orders_wrapper(self: &Arc<Self>) {
-        let mut reader = csv::ReaderBuilder::new()
-            .has_headers(false)
-            .from_reader(io::stdin());
-        for result in reader.records() {
-            println!(
-                "{}[Lector de pedidos]{} - Tomando pedido",
-                COLOR_BLUE, COLOR_RESET
-            );
-            let record = result.expect("Failed to read record");
-            let order = Order::new(
-                record[Resource::Coffee as usize]
-                    .parse()
-                    .expect("Failed to parse coffee"),
-                record[Resource::Milk as usize]
-                    .parse()
-                    .expect("Failed to parse milk"),
-                record[Resource::Water as usize]
-                    .parse()
-                    .expect("Failed to parse water"),
-            );
-            println!(
-                "{}[Lector de pedidos]{} - Pedido tomado y anotado: {}",
-                COLOR_BLUE, COLOR_RESET, order
-            );
-            self.blocking_queue.push_back(Message::Job(order));
-            // Sleep para simular que todos los pedidos no llegan de inmediato. Similar a clientes.
-            thread::sleep(Duration::from_millis(ORDER_TIME_INTERVAL_ARRIVAL));
-        }
+        let order_reader = OrderReader::new(self.blocking_queue.clone());
+        order_reader.read_from(io::stdin());
     }
 
     /// Prepares the orders
