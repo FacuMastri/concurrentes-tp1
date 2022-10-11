@@ -6,10 +6,10 @@
 
 ## Ejecución
 
-La aplicación lee por `stdin` la ruta específica por donde tomar un archivo `.csv`que contenga los pedidos de bebidas.
-La idea era que la posibilidad
-de cambiar de distintos archivos sea rápida, en lugar de tener que cambiar el valor de alguna constante en el código con
+La aplicación lee por `stdin` la ruta específica por donde tomar un archivo `.csv` que contenga los pedidos de bebidas.
+La idea era cambiar rápidamente de archivos, en lugar de tener que cambiar el valor de alguna constante en el código con
 la ruta del archivo en cuestión.
+
 El archivo en cuestión no debe tener headers, y el orden de las columnas debe ser el
 siguiente: `cantidad_cafe | cantidad_leche | cantidad_agua`.
 Es necesario que el archivo siempre tenga la misma cantidad de columnas, y que cada una de ellas contenga un número
@@ -51,8 +51,8 @@ Las hipótesis y supuestos tomados para el desarrollo del presente trabajo prác
 ## Detalles de implementación
 
 A nivel general, y para cumplir con los requisitos funcionales planteados en el trabajo práctico, se tienen los
-siguientes actores (threads) dentro del
-struct `CoffeeMachine`:
+siguientes _actores_ (threads) dentro del
+`struct CoffeeMachine`:
 
 **Observación**: cuando se dice que algo es _configurable_ se refiere que se puede cambiar el valor de la constante
 en `constants.rs`
@@ -61,8 +61,9 @@ en `constants.rs`
   molido, leche espumada y/o agua caliente
   según corresponda. Toman los pedidos desde una `BlockingQueue` la cual es compartida con el thread de **Lector de
   pedidos**. Dicha cola es unbounded
-  y es bloqueante solo al momento de tomar un elemento de la misma.
-- **Lector de pedidos**: se encarga de leer los pedidos desde un archivo `.csv` y los envía a la `BlockingQueue`
+  y es bloqueante solo al momento de tomar un elemento de la misma en caso deq que esté vacía.
+- **Lector de pedidos**: se encarga de leer los pedidos desde `stdin` (en particular, un archivo `.csv`) y los envía a
+  la `BlockingQueue`
   compartida con los N dispensers.
 - **Estadísticas**: imprime periódicamente las estadísticas de la máquina de café. Dichas estadísticas incluyen la
   cantidad de pedidos completados,
@@ -86,8 +87,8 @@ Además, algunos detalles de implementación de más bajo nivel incluyen:
   configurable.
   La motivación era simular que no todos los customers llegan al mismo tiempo, sino que lo van haciendo de a uno cada
   cierto tiempo.
-- Las estadísticas se informan periódicamente (ejecutando un `sleep) cada cierto tiempo configurable. Otra alternativa
-  hubiera sido informarlas cada vez que se completen X pedidos.
+- Las estadísticas se informan periódicamente (ejecutando un `sleep`) cada cierto tiempo configurable. Otra alternativa
+  hubiera sido informarlas cada vez que se completen X pedidos usando una `Condvar` sobre el contador de bebidas.
 
 ### Comunicación y sincronización entre threads
 
@@ -115,7 +116,6 @@ cuentan son las siguientes:
   ser notificados por la `Condvar` de los contenedores principales. Se utiliza un `AtomicBool` para evitar el uso de
   un `Mutex` y probar algo diferente.
 - **Cola bloqueante**: como ya se mencionó, es una `BlockingQueue` compartida entre el thread lector y los N dispensers.
-  Esta es unbounded y es bloqueante solo al momento de tomar un elemento de la misma.
 - **Contador de pedidos completados**: protegido por un `Mutex` y se toma el lock cuando un dispenser termina de
   preparar una bebida, o se necesita imprimir las estadísticas.
 
@@ -135,7 +135,7 @@ que representan los dispensers terminen:
 3) Desde el thread principal, se actualiza la variable de shutdown.
 4) Los threads que estén esperando con un `wait_while` o con un loop periódico se despiertan y finalizan su ejecución al
    leer la variable de shutdown.
-5) El thread principal finaliza su ejecución, imprimiendo antes las estadísticas finales.
+5) El thread principal finaliza su ejecución, imprimiendo las estadísticas finales.
 
 ### Crates utilizados
 
@@ -144,7 +144,7 @@ de los archivos `.csv` que contienen los pedidos.
 
 ### Cuestiones a mejorar
 
-- **Testing automatizados**: no se realizaron test automatizados para el presente trabajo práctico. Sin embargo, si se
+- **Testing automatizado**: no se realizaron test automatizados para el presente trabajo práctico. Sin embargo, si se
   probó con diferentes inputs el comportamiento esperado.
   Me hubiera gustado probar sobre todo `loom`, pero frente a diversos compromisos y estar ajustado de tiempo, prioricé
   realizar las funcionalidades que cumplan los requerimientos planteados.
