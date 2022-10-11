@@ -37,3 +37,11 @@ pub const ORDER_TIME_INTERVAL_ARRIVAL: u64 = 2000;
 ///
 /// This is used to have some kind of mechanism to stop the execution of a thread when doing a graceful shutdown
 pub const CONDVAR_WAIT_TIMEOUT: u64 = 5;
+
+pub const COLOR_RED: &str = "\x1b[31m";
+pub const COLOR_GREEN: &str = "\x1b[32m";
+pub const COLOR_YELLOW: &str = "\x1b[33m";
+pub const COLOR_BLUE: &str = "\x1b[34m";
+pub const COLOR_MAGENTA: &str = "\x1b[35m";
+pub const COLOR_CYAN: &str = "\x1b[36m";
+pub const COLOR_RESET: &str = "\x1b[0m";

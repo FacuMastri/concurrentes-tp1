@@ -1,4 +1,7 @@
-use crate::constants::{COFFEE_TO_REFILL, CONDVAR_WAIT_TIMEOUT, MILK_TO_REFILL};
+use crate::constants::{
+    COFFEE_TO_REFILL, COLOR_BLUE, COLOR_CYAN, COLOR_GREEN, COLOR_MAGENTA, COLOR_RED, COLOR_RESET,
+    COLOR_YELLOW, CONDVAR_WAIT_TIMEOUT, MILK_TO_REFILL,
+};
 use crate::container::Container;
 use crate::utils::converter::{refill_coffee, refill_milk};
 use crate::utils::Resource;
@@ -84,12 +87,15 @@ impl CoffeeMachine {
 
         thread::spawn(move || {
             coffee_machine_clone.read_order_wrapper();
-            println!("[Lector de pedidos] No hay más pedidos para leer");
+            println!(
+                "{}[Lector de pedidos]{} - No hay más pedidos para leer",
+                COLOR_BLUE, COLOR_RESET
+            );
             coffee_machine_clone.prepare_shutdown();
         })
     }
 
-    fn prepare_shutdown(self: &Arc<CoffeeMachine>) {
+    fn prepare_shutdown(self: &Arc<Self>) {
         // Para finalizar el programa y hacer un shutdown, debo comunicarle a los dispensadores que ya no hay más pedidos.
         for _ in 0..MAX_DISPENSERS {
             self.blocking_queue.push_back(Order::new(0, 0, 0));
@@ -103,7 +109,10 @@ impl CoffeeMachine {
             .has_headers(false)
             .from_reader(io::stdin());
         for result in reader.records() {
-            println!("[Lector de pedidos] Tomando pedido");
+            println!(
+                "{}[Lector de pedidos]{} - Tomando pedido",
+                COLOR_BLUE, COLOR_RESET
+            );
             let record = result.expect("Failed to read record");
             let order = Order::new(
                 record[Resource::Coffee as usize]
@@ -116,7 +125,10 @@ impl CoffeeMachine {
                     .parse()
                     .expect("Failed to parse water"),
             );
-            println!("[Lector de pedidos] Pedido tomado y anotado: {}", order);
+            println!(
+                "{}[Lector de pedidos]{} - Pedido tomado y anotado: {}",
+                COLOR_BLUE, COLOR_RESET, order
+            );
             self.blocking_queue.push_back(order);
             // Sleep para simular que todos los pedidos no llegan de inmediato. Similar a clientes.
             thread::sleep(Duration::from_millis(ORDER_TIME_INTERVAL_ARRIVAL));
@@ -142,8 +154,8 @@ impl CoffeeMachine {
 
             if order.is_empty() {
                 println!(
-                    "[Dispenser {}] No hay pedidos, apagando dispenser",
-                    n_dispenser
+                    "{}[Dispenser {}]{} - No hay pedidos, apagando dispenser",
+                    COLOR_GREEN, n_dispenser, COLOR_RESET
                 );
                 break;
             }
@@ -157,7 +169,10 @@ impl CoffeeMachine {
         let milk_amount = order.get_milk();
         let water_amount = order.get_water();
 
-        println!("[Dispenser {}] Recibió pedido: {}", n_dispenser, order);
+        println!(
+            "{}[Dispenser {}]{} Recibió pedido: {}",
+            COLOR_GREEN, n_dispenser, COLOR_RESET, order
+        );
 
         if order.requires_coffee() {
             self.serve_coffee(coffee_amount, n_dispenser);
@@ -171,7 +186,10 @@ impl CoffeeMachine {
             self.serve_water(water_amount, n_dispenser);
         }
 
-        println!("[Dispenser {}] Terminó de preparar bebida ✓", n_dispenser);
+        println!(
+            "{}[Dispenser {}]{} - Terminó de preparar bebida ✓",
+            COLOR_GREEN, n_dispenser, COLOR_RESET
+        );
         self.increase_drinks_prepared();
     }
 
@@ -184,11 +202,17 @@ impl CoffeeMachine {
     }
 
     fn serve_water(&self, water_amount: &u64, n_dispenser: u64) {
-        println!("[Dispenser {}] Aplicando agua", n_dispenser);
+        println!(
+            "{}[Dispenser {}]{} - Aplicando agua",
+            COLOR_GREEN, n_dispenser, COLOR_RESET
+        );
         thread::sleep(Duration::from_millis(
             (BASE_TIME_RESOURCE_APPLICATION * water_amount) as u64,
         ));
-        println!("[Dispenser {}] Terminó de aplicar agua", n_dispenser);
+        println!(
+            "{}[Dispenser {}]{} - Terminó de aplicar agua",
+            COLOR_GREEN, n_dispenser, COLOR_RESET
+        );
     }
 
     fn serve_milk(&self, milk_amount: &u64, n_dispenser: u64) {
@@ -196,8 +220,8 @@ impl CoffeeMachine {
         let mut milk_foam = lock.lock().expect("Failed to lock milk_foam");
         if !milk_foam.has_enough(milk_amount) {
             println!(
-                "[Dispenser {}] No hay suficiente {} leche espumada para preparar la bebida",
-                n_dispenser, milk_amount
+                "{}[Dispenser {}]{} - No hay suficiente {} leche espumada para preparar la bebida",
+                COLOR_GREEN, n_dispenser, COLOR_RESET, milk_amount
             );
             let cold_milk_container = self
                 .cold_milk_container
@@ -210,14 +234,17 @@ impl CoffeeMachine {
             );
         }
         println!(
-            "[Dispenser {}] Aplicando leche espumada: {}",
-            n_dispenser, milk_amount
+            "{}[Dispenser {}]{} - Aplicando {} de leche espumada",
+            COLOR_GREEN, n_dispenser, COLOR_RESET, milk_amount
         );
         thread::sleep(Duration::from_millis(
             (BASE_TIME_RESOURCE_APPLICATION * milk_amount) as u64,
         ));
         milk_foam.subtract(milk_amount);
-        println!("[Dispenser {}] Terminó de aplicar leche", n_dispenser);
+        println!(
+            "{}[Dispenser {}]{} - Terminó de aplicar leche espumada",
+            COLOR_GREEN, n_dispenser, COLOR_RESET
+        );
         cvar.notify_all();
     }
 
@@ -226,8 +253,8 @@ impl CoffeeMachine {
         let mut ground_coffee_beans = lock.lock().expect("Failed to lock ground_coffee_beans");
         if !ground_coffee_beans.has_enough(coffee_amount) {
             println!(
-                "[Dispenser {}] No hay suficientes {} granos de café para preparar la bebida",
-                n_dispenser, coffee_amount
+                "{}[Dispenser {}]{} - No hay suficientes {} granos de café para preparar la bebida",
+                COLOR_GREEN, n_dispenser, COLOR_RESET, coffee_amount
             );
             let coffee_beans_to_grind_container = self
                 .coffee_beans_to_grind_container
@@ -240,16 +267,16 @@ impl CoffeeMachine {
             );
         }
         println!(
-            "[Dispenser {}] Aplicando granos de café: {}",
-            n_dispenser, coffee_amount
+            "{}[Dispenser {}]{} - Aplicando {} granos de café",
+            COLOR_GREEN, n_dispenser, COLOR_RESET, coffee_amount
         );
         thread::sleep(Duration::from_millis(
             (BASE_TIME_RESOURCE_APPLICATION * coffee_amount) as u64,
         ));
         ground_coffee_beans.subtract(coffee_amount);
         println!(
-            "[Dispenser {}] Terminó de aplicar granos de café",
-            n_dispenser
+            "{}[Dispenser {}]{} - Terminó de aplicar granos de café",
+            COLOR_GREEN, n_dispenser, COLOR_RESET
         );
         cvar.notify_all();
     }
@@ -274,7 +301,10 @@ impl CoffeeMachine {
             refill_milk(&mut milk_foam, &MILK_TO_REFILL, cold_milk);
             cvar.notify_all();
         }
-        println!("[Refill de leche espumada] Apagando refill de leche espumada");
+        println!(
+            "{}[Refill de leche espumada]{} - Apagando refill de leche espumada",
+            COLOR_MAGENTA, COLOR_RESET
+        );
     }
 
     fn transform_coffee(&self) {
@@ -301,7 +331,10 @@ impl CoffeeMachine {
             );
             cvar.notify_all();
         }
-        println!("[Refill de café] Apagando refill de granos de café");
+        println!(
+            "{}[Refill de café]{} - Apagando refill de granos de café",
+            COLOR_CYAN, COLOR_RESET
+        );
     }
 
     fn refill_milk(self: &Arc<Self>) -> JoinHandle<()> {
@@ -329,12 +362,15 @@ impl CoffeeMachine {
                 continue;
             }
             println!(
-                "[Alerta de recursos: café] El nivel de granos de café es de {} (threshold de {}%)",
+                "{}[Alerta de recursos: café]{} - El nivel de granos de café es de {} (threshold de {}%)", COLOR_RED, COLOR_RESET,
                 (*ground_coffee_beans).get_current_amount(),
                 RESOURCE_ALERT_FACTOR * 100.0
             );
         }
-        println!("[Alerta de recursos: café] Apagando alerta de recursos de café");
+        println!(
+            "{}[Alerta de recursos: café]{} - Apagando alerta de recursos de café",
+            COLOR_RED, COLOR_RESET
+        );
     }
     fn alert_for_coffee(self: &Arc<Self>) -> JoinHandle<()> {
         let coffee_machine_clone = self.clone();
@@ -359,12 +395,15 @@ impl CoffeeMachine {
                 continue;
             }
             println!(
-                "[Alerta de recursos: leche] El nivel de leche espumada es de {} (threshold de {}%)",
+                "{}[Alerta de recursos: leche]{} El nivel de leche espumada es de {} (threshold de {}%)", COLOR_RED, COLOR_RESET,
                 (*milk_foam).get_current_amount(),
                 RESOURCE_ALERT_FACTOR * 100.0
             );
         }
-        println!("[Alerta de recursos: leche] Apagando alerta de recursos de leche");
+        println!(
+            "{}[Alerta de recursos: leche]{} - Apagando alerta de recursos de leche",
+            COLOR_RED, COLOR_RESET
+        );
     }
 
     fn inform_system(self: &Arc<Self>) -> JoinHandle<()> {
@@ -372,63 +411,70 @@ impl CoffeeMachine {
         thread::spawn(move || coffee_machine_clone.inform_stats())
     }
 
-    #[allow(clippy::format_push_string)]
     fn inform_stats(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
-            let mut report = String::from("[Estadísticas] ");
-            {
-                let total_drinks = self
-                    .total_drinks_prepared
-                    .lock()
-                    .expect("Failed to lock total_drinks");
-                report.push_str(&format!(
-                    "Total de bebidas preparadas: {} || ",
-                    total_drinks
-                ));
-            }
-            {
-                let (lock, _cvar) = &*self.ground_coffee_beans_container;
-                let ground_coffee_beans = lock.lock().expect("Failed to lock ground_coffee_beans");
-                report.push_str(&format!(
-                    "Café molido actualmente: {} - Consumido: {} || ",
-                    ground_coffee_beans.get_current_amount(),
-                    ground_coffee_beans.get_amount_used()
-                ));
-            }
-            {
-                let coffee_beans_to_grind = self
-                    .coffee_beans_to_grind_container
-                    .lock()
-                    .expect("Failed to lock coffee_beans_to_grind");
-                report.push_str(&format!(
-                    "Café en grano actualmente: {} - Consumido: {} || ",
-                    coffee_beans_to_grind.get_current_amount(),
-                    coffee_beans_to_grind.get_amount_used()
-                ));
-            }
-            {
-                let cold_milk = self
-                    .cold_milk_container
-                    .lock()
-                    .expect("Failed to lock cold_milk");
-                report.push_str(&format!(
-                    "Leche fría actualmente: {} - Consumida: {} || ",
-                    cold_milk.get_current_amount(),
-                    cold_milk.get_amount_used()
-                ));
-            }
-            {
-                let (lock, _cvar) = &*self.milk_foam_container;
-                let milk_foam = lock.lock().expect("Failed to lock milk_foam");
-                report.push_str(&format!(
-                    "Leche espumada actualmente: {} - Consumida: {} ",
-                    milk_foam.get_current_amount(),
-                    milk_foam.get_amount_used()
-                ));
-            }
+            let mut report = String::from("\x1b[33m[Estadísticas]\x1b[0m - ");
+            self.obtain_stats(&mut report);
             println!("{}", report);
             thread::sleep(Duration::from_secs(STATS_UPDATE_INTERVAL));
         }
-        println!("[Estadísticas] Apagando informe del sistema");
+        println!(
+            "{}[Estadísticas]{} - Apagando informe del sistema",
+            COLOR_YELLOW, COLOR_RESET
+        );
+    }
+
+    #[allow(clippy::format_push_string)]
+    fn obtain_stats(&self, report: &mut String) {
+        {
+            let total_drinks = self
+                .total_drinks_prepared
+                .lock()
+                .expect("Failed to lock total_drinks");
+            report.push_str(&format!(
+                "Total de bebidas preparadas: {} || ",
+                total_drinks
+            ));
+        }
+        {
+            let (lock, _cvar) = &*self.ground_coffee_beans_container;
+            let ground_coffee_beans = lock.lock().expect("Failed to lock ground_coffee_beans");
+            report.push_str(&format!(
+                "Café molido actualmente: {} - Consumido: {} || ",
+                ground_coffee_beans.get_current_amount(),
+                ground_coffee_beans.get_amount_used()
+            ));
+        }
+        {
+            let coffee_beans_to_grind = self
+                .coffee_beans_to_grind_container
+                .lock()
+                .expect("Failed to lock coffee_beans_to_grind");
+            report.push_str(&format!(
+                "Café en grano actualmente: {} - Consumido: {} || ",
+                coffee_beans_to_grind.get_current_amount(),
+                coffee_beans_to_grind.get_amount_used()
+            ));
+        }
+        {
+            let cold_milk = self
+                .cold_milk_container
+                .lock()
+                .expect("Failed to lock cold_milk");
+            report.push_str(&format!(
+                "Leche fría actualmente: {} - Consumida: {} || ",
+                cold_milk.get_current_amount(),
+                cold_milk.get_amount_used()
+            ));
+        }
+        {
+            let (lock, _cvar) = &*self.milk_foam_container;
+            let milk_foam = lock.lock().expect("Failed to lock milk_foam");
+            report.push_str(&format!(
+                "Leche espumada actualmente: {} - Consumida: {} ",
+                milk_foam.get_current_amount(),
+                milk_foam.get_amount_used()
+            ));
+        }
     }
 }

@@ -18,8 +18,10 @@ use constants::{
 };
 
 fn main() {
-    // TODO printear con colores (y separar en modulo), refactorizar la lectura y algo mas, ver si se puede testear algo
+    // TODO printear con colores (y separar en modulo)
+    // TODO ver si se puede testear algo
     // TODO ver una cosa de las hipotesis
+    // TODO agregar las docs de structs
     let coffee_machine = CoffeeMachine::new();
     coffee_machine.start();
 }

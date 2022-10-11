@@ -6,6 +6,7 @@ pub enum Resource {
 }
 
 pub mod converter {
+    use crate::constants::{COLOR_CYAN, COLOR_MAGENTA, COLOR_RESET};
     use crate::container::Container;
     use crate::BASE_TIME_RESOURCE_REFILL;
     use std::sync::MutexGuard;
@@ -30,15 +31,18 @@ pub mod converter {
         mut coffee_beans_to_grind_container: MutexGuard<Container>,
     ) {
         println!(
-            "[Refill de café] Convirtiendo {} de granos para moler a granos molidos",
-            value_to_refill
+            "{}[Refill de café]{} - Convirtiendo {} de granos para moler a granos molidos",
+            COLOR_CYAN, COLOR_RESET, value_to_refill
         );
         refill_container(
             &mut coffee_beans_to_grind_container,
             value_to_refill,
             ground_coffee_beans_container,
         );
-        println!("[Refill de café] Terminó de convertir granos de café");
+        println!(
+            "{}[Refill de café]{} - Terminó de convertir granos de café",
+            COLOR_CYAN, COLOR_RESET
+        );
     }
 
     pub fn refill_milk(
@@ -47,14 +51,17 @@ pub mod converter {
         mut cold_milk_container: MutexGuard<Container>,
     ) {
         println!(
-            "[Refill de leche espumada] Convirtiendo {} de leche a leche espumada",
-            value_to_refill
+            "{}[Refill de leche espumada]{} - Convirtiendo {} de leche a leche espumada",
+            COLOR_MAGENTA, COLOR_RESET, value_to_refill
         );
         refill_container(
             &mut cold_milk_container,
             value_to_refill,
             milk_foam_container,
         );
-        println!("[Refill de leche espumada] Terminó de convertir leche espumada");
+        println!(
+            "{}[Refill de leche espumada]{} - Terminó de convertir leche espumada",
+            COLOR_MAGENTA, COLOR_RESET
+        );
     }
 }
