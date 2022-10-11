@@ -80,6 +80,8 @@ impl CoffeeMachine {
             .into_iter()
             .flat_map(|dispenser| dispenser.join())
             .collect();
+        let report = self.obtain_stats();
+        println!("{}", report);
     }
 
     fn read_orders(self: &Arc<Self>) -> JoinHandle<()> {
@@ -170,7 +172,7 @@ impl CoffeeMachine {
         let water_amount = order.get_water();
 
         println!(
-            "{}[Dispenser {}]{} Recibió pedido: {}",
+            "{}[Dispenser {}]{} - Recibió pedido: {}",
             COLOR_GREEN, n_dispenser, COLOR_RESET, order
         );
 
@@ -413,8 +415,7 @@ impl CoffeeMachine {
 
     fn inform_stats(&self) {
         while !self.should_shutdown.load(Ordering::Relaxed) {
-            let mut report = String::from("\x1b[33m[Estadísticas]\x1b[0m - ");
-            self.obtain_stats(&mut report);
+            let report = self.obtain_stats();
             println!("{}", report);
             thread::sleep(Duration::from_secs(STATS_UPDATE_INTERVAL));
         }
@@ -425,7 +426,8 @@ impl CoffeeMachine {
     }
 
     #[allow(clippy::format_push_string)]
-    fn obtain_stats(&self, report: &mut String) {
+    fn obtain_stats(&self) -> String {
+        let mut report = String::from("\x1b[33m[Estadísticas]\x1b[0m - ");
         {
             let total_drinks = self
                 .total_drinks_prepared
@@ -476,5 +478,6 @@ impl CoffeeMachine {
                 milk_foam.get_amount_used()
             ));
         }
+        report
     }
 }

@@ -38,10 +38,17 @@ pub const ORDER_TIME_INTERVAL_ARRIVAL: u64 = 2000;
 /// This is used to have some kind of mechanism to stop the execution of a thread when doing a graceful shutdown
 pub const CONDVAR_WAIT_TIMEOUT: u64 = 5;
 
+/// Color for the console output, according to the actor involved
 pub const COLOR_RED: &str = "\x1b[31m";
+/// Color for the console output, according to the actor involved
 pub const COLOR_GREEN: &str = "\x1b[32m";
+/// Color for the console output, according to the actor involved
 pub const COLOR_YELLOW: &str = "\x1b[33m";
+/// Color for the console output, according to the actor involved
 pub const COLOR_BLUE: &str = "\x1b[34m";
+/// Color for the console output, according to the actor involved
 pub const COLOR_MAGENTA: &str = "\x1b[35m";
+/// Color for the console output, according to the actor involved
 pub const COLOR_CYAN: &str = "\x1b[36m";
+/// Color for the console output, according to the actor involved
 pub const COLOR_RESET: &str = "\x1b[0m";
