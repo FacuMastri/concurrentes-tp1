@@ -39,10 +39,6 @@ impl Order {
     pub fn get_milk(&self) -> &u64 {
         &self.milk
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.water == 0 && self.coffee == 0 && self.milk == 0
-    }
 }
 
 impl Display for Order {
