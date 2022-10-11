@@ -57,6 +57,14 @@ impl CoffeeMachine {
         let alert_system_for_milk = self.alert_for_milk();
         let inform_system = self.inform_system();
 
+        let _: Vec<()> = dispensers
+            .into_iter()
+            .flat_map(|dispenser| dispenser.join())
+            .collect();
+
+        // Debo avisarle a los threads que deben finalizar.
+        self.should_shutdown.store(true, Ordering::Relaxed);
+
         coffee_refill
             .join()
             .expect("Failed to join coffee_refill thread");
@@ -76,10 +84,6 @@ impl CoffeeMachine {
             .join()
             .expect("Failed to join reader_handle thread");
 
-        let _: Vec<()> = dispensers
-            .into_iter()
-            .flat_map(|dispenser| dispenser.join())
-            .collect();
         let report = self.obtain_stats();
         println!("{}", report);
     }
@@ -88,7 +92,7 @@ impl CoffeeMachine {
         let coffee_machine_clone = self.clone();
 
         thread::spawn(move || {
-            coffee_machine_clone.read_order_wrapper();
+            coffee_machine_clone.read_orders_wrapper();
             println!(
                 "{}[Lector de pedidos]{} - No hay más pedidos para leer",
                 COLOR_BLUE, COLOR_RESET
@@ -102,11 +106,9 @@ impl CoffeeMachine {
         for _ in 0..MAX_DISPENSERS {
             self.blocking_queue.push_back(Message::Shutdown);
         }
-        // Debo avisarle a los threads que deben finalizar.
-        self.should_shutdown.store(true, Ordering::Relaxed);
     }
 
-    fn read_order_wrapper(self: &Arc<Self>) {
+    fn read_orders_wrapper(self: &Arc<Self>) {
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(false)
             .from_reader(io::stdin());
