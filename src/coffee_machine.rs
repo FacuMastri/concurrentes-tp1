@@ -1,6 +1,6 @@
 use crate::constants::{
     COFFEE_TO_REFILL, COLOR_BLUE, COLOR_CYAN, COLOR_GREEN, COLOR_MAGENTA, COLOR_RED, COLOR_RESET,
-    COLOR_YELLOW, CONDVAR_WAIT_TIMEOUT, MILK_TO_REFILL,
+    COLOR_YELLOW, MILK_TO_REFILL,
 };
 use crate::container::Container;
 use crate::order_reader::OrderReader;
@@ -77,6 +77,10 @@ impl CoffeeMachine {
         // Debo avisarle a los threads que deben finalizar una vez que todos los threads terminaron
         // sus pedidos.
         self.should_shutdown.store(true, Ordering::Relaxed);
+        let (_lock, cvar) = &*self.ground_coffee_beans_container;
+        cvar.notify_all();
+        let (_lock, cvar) = &*self.milk_foam_container;
+        cvar.notify_all();
 
         coffee_refill
             .join()
@@ -298,22 +302,24 @@ impl CoffeeMachine {
     /// Refills the milk container
     /// This method will refill the milk container, using the cold milk container
     fn transform_milk(&self) {
-        while !self.should_shutdown.load(Ordering::Relaxed) {
+        loop {
             let (lock, cvar) = &*self.milk_foam_container;
-            let (mut milk_foam, timeout_result) = cvar
-                .wait_timeout_while(
-                    lock.lock().expect("Failed to obtain lock"),
-                    Duration::from_secs(CONDVAR_WAIT_TIMEOUT),
-                    |milk_foam| milk_foam.has_any(),
-                )
+            let mut milk_foam = cvar
+                .wait_while(lock.lock().expect("Failed to obtain lock"), |milk_foam| {
+                    milk_foam.has_any() && !self.should_shutdown.load(Ordering::Relaxed)
+                })
                 .expect("Failed to wait for milk_foam");
-            if timeout_result.timed_out() {
-                continue;
+            if self.should_shutdown.load(Ordering::Relaxed) {
+                break;
             }
             let cold_milk = self
                 .cold_milk_container
                 .lock()
                 .expect("Failed to lock cold_milk_container");
+            println!(
+                "{}[Refill de leche espumada]{} - La leche espumada se ha agotado",
+                COLOR_MAGENTA, COLOR_RESET,
+            );
             refill_milk(&mut milk_foam, &MILK_TO_REFILL, cold_milk);
             cvar.notify_all();
         }
@@ -326,18 +332,24 @@ impl CoffeeMachine {
     /// Refills the coffee container
     /// This method will refill the coffee container, using the coffee beans to grind container
     fn transform_coffee(&self) {
-        while !self.should_shutdown.load(Ordering::Relaxed) {
+        loop {
             let (lock, cvar) = &*self.ground_coffee_beans_container;
-            let (mut ground_coffee_beans, timeout_result) = cvar
-                .wait_timeout_while(
+            let mut ground_coffee_beans = cvar
+                .wait_while(
                     lock.lock().expect("Failed to obtain lock"),
-                    Duration::from_secs(CONDVAR_WAIT_TIMEOUT),
-                    |ground_coffee_beans| ground_coffee_beans.has_any(),
+                    |ground_coffee_beans| {
+                        ground_coffee_beans.has_any()
+                            && !self.should_shutdown.load(Ordering::Relaxed)
+                    },
                 )
                 .expect("Failed to wait for ground_coffee_beans");
-            if timeout_result.timed_out() {
-                continue;
+            if self.should_shutdown.load(Ordering::Relaxed) {
+                break;
             }
+            println!(
+                "{}[Refill de granos de café]{} - Los granos de café molido se han agotado",
+                COLOR_CYAN, COLOR_RESET,
+            );
             let coffee_beans_to_grind = self
                 .coffee_beans_to_grind_container
                 .lock()
@@ -371,19 +383,19 @@ impl CoffeeMachine {
     /// This method will print the current status of the ground coffee beans container
     /// It will print the current amount of coffee in the container when it is under the threshold
     fn inform_about_coffee_beans(&self) {
-        while !self.should_shutdown.load(Ordering::Relaxed) {
+        loop {
             let (lock, cvar) = &*self.ground_coffee_beans_container;
-            let (ground_coffee_beans, timeout_result) = cvar
-                .wait_timeout_while(
+            let ground_coffee_beans = cvar
+                .wait_while(
                     lock.lock().expect("Failed to obtain lock"),
-                    Duration::from_secs(CONDVAR_WAIT_TIMEOUT),
                     |ground_coffee_beans| {
                         ground_coffee_beans.has_enough(&(COFFEE_BEANS_ALERT_THRESHOLD as u64))
+                            && !self.should_shutdown.load(Ordering::Relaxed)
                     },
                 )
                 .expect("Failed to wait for ground_coffee_beans");
-            if timeout_result.timed_out() {
-                continue;
+            if self.should_shutdown.load(Ordering::Relaxed) {
+                break;
             }
             println!(
                 "{}[Alerta de recursos: café]{} - El nivel de granos de café es de {} (threshold de {}%)", COLOR_RED, COLOR_RESET,
@@ -411,17 +423,16 @@ impl CoffeeMachine {
     /// This method will print the current status of the milk foam container
     /// It will print the current amount of milk in the container when it is under the threshold
     fn inform_about_milk_foam(&self) {
-        while !self.should_shutdown.load(Ordering::Relaxed) {
+        loop {
             let (lock, cvar) = &*self.milk_foam_container;
-            let (milk_foam, timeout_result) = cvar
-                .wait_timeout_while(
-                    lock.lock().expect("Failed to obtain lock"),
-                    Duration::from_secs(CONDVAR_WAIT_TIMEOUT),
-                    |milk_foam| milk_foam.has_enough(&(MILK_FOAM_ALERT_THRESHOLD as u64)),
-                )
+            let milk_foam = cvar
+                .wait_while(lock.lock().expect("Failed to obtain lock"), |milk_foam| {
+                    milk_foam.has_enough(&(MILK_FOAM_ALERT_THRESHOLD as u64))
+                        && !self.should_shutdown.load(Ordering::Relaxed)
+                })
                 .expect("Failed to wait for milk_foam");
-            if timeout_result.timed_out() {
-                continue;
+            if self.should_shutdown.load(Ordering::Relaxed) {
+                break;
             }
             println!(
                 "{}[Alerta de recursos: leche]{} El nivel de leche espumada es de {} (threshold de {}%)", COLOR_RED, COLOR_RESET,
