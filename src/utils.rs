@@ -1,8 +1,15 @@
+use crate::Order;
+
 #[derive(Clone, Copy, Debug)]
 pub enum Resource {
     Coffee = 0,
     Milk,
     Water,
+}
+
+pub enum Message {
+    Job(Order),
+    Shutdown,
 }
 
 pub mod converter {

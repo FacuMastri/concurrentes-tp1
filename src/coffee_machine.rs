@@ -4,7 +4,7 @@ use crate::constants::{
 };
 use crate::container::Container;
 use crate::utils::converter::{refill_coffee, refill_milk};
-use crate::utils::Resource;
+use crate::utils::{Message, Resource};
 use crate::{
     BlockingQueue, Order, BASE_TIME_RESOURCE_APPLICATION, COFFEE_BEANS_ALERT_THRESHOLD,
     INITIAL_COFFEE_BEANS_TO_GRIND, INITIAL_COLD_MILK, INITIAL_GROUND_COFFEE_BEANS,
@@ -23,7 +23,7 @@ pub struct CoffeeMachine {
     cold_milk_container: Arc<Mutex<Container>>,
     milk_foam_container: Arc<(Mutex<Container>, Condvar)>,
     total_drinks_prepared: Arc<Mutex<u64>>,
-    blocking_queue: Arc<BlockingQueue<Order>>,
+    blocking_queue: Arc<BlockingQueue<Message>>,
     should_shutdown: Arc<AtomicBool>,
 }
 
@@ -100,7 +100,7 @@ impl CoffeeMachine {
     fn prepare_shutdown(self: &Arc<Self>) {
         // Para finalizar el programa y hacer un shutdown, debo comunicarle a los dispensadores que ya no hay más pedidos.
         for _ in 0..MAX_DISPENSERS {
-            self.blocking_queue.push_back(Order::new(0, 0, 0));
+            self.blocking_queue.push_back(Message::Shutdown);
         }
         // Debo avisarle a los threads que deben finalizar.
         self.should_shutdown.store(true, Ordering::Relaxed);
@@ -131,7 +131,7 @@ impl CoffeeMachine {
                 "{}[Lector de pedidos]{} - Pedido tomado y anotado: {}",
                 COLOR_BLUE, COLOR_RESET, order
             );
-            self.blocking_queue.push_back(order);
+            self.blocking_queue.push_back(Message::Job(order));
             // Sleep para simular que todos los pedidos no llegan de inmediato. Similar a clientes.
             thread::sleep(Duration::from_millis(ORDER_TIME_INTERVAL_ARRIVAL));
         }
@@ -153,16 +153,26 @@ impl CoffeeMachine {
     fn make_drink(self: &Arc<Self>, n_dispenser: u64) {
         loop {
             let order = self.blocking_queue.pop_front();
-
-            if order.is_empty() {
-                println!(
-                    "{}[Dispenser {}]{} - No hay pedidos, apagando dispenser",
-                    COLOR_GREEN, n_dispenser, COLOR_RESET
-                );
-                break;
+            match order {
+                Message::Job(order) => {
+                    println!(
+                        "{}[Dispenser {}]{} - Recibió pedido: {}",
+                        COLOR_GREEN, n_dispenser, COLOR_RESET, order
+                    );
+                    self.prepare_drink(order, n_dispenser);
+                    println!(
+                        "{}[Dispenser {}]{} - Terminó de preparar bebida ✓",
+                        COLOR_GREEN, n_dispenser, COLOR_RESET
+                    );
+                }
+                Message::Shutdown => {
+                    println!(
+                        "{}[Dispenser {}]{} - No hay pedidos, apagando dispenser",
+                        COLOR_GREEN, n_dispenser, COLOR_RESET
+                    );
+                    break;
+                }
             }
-
-            self.prepare_drink(order, n_dispenser);
         }
     }
 
@@ -170,11 +180,6 @@ impl CoffeeMachine {
         let coffee_amount = order.get_coffee();
         let milk_amount = order.get_milk();
         let water_amount = order.get_water();
-
-        println!(
-            "{}[Dispenser {}]{} - Recibió pedido: {}",
-            COLOR_GREEN, n_dispenser, COLOR_RESET, order
-        );
 
         if order.requires_coffee() {
             self.serve_coffee(coffee_amount, n_dispenser);
@@ -188,10 +193,6 @@ impl CoffeeMachine {
             self.serve_water(water_amount, n_dispenser);
         }
 
-        println!(
-            "{}[Dispenser {}]{} - Terminó de preparar bebida ✓",
-            COLOR_GREEN, n_dispenser, COLOR_RESET
-        );
         self.increase_drinks_prepared();
     }
 

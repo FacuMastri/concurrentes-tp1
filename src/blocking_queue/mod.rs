@@ -2,7 +2,9 @@ use std::collections::*;
 use std::sync::*;
 
 /// Basic implementation of a blocking queue using a dequeue, a mutex and a condition variable.
+///
 /// The queue is blocking when it is empty and the consumer tries to pop an element.
+///
 /// This implementation is using an unbounded queue.
 #[derive(Debug)]
 pub struct BlockingQueue<T> {
