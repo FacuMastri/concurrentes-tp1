@@ -6,7 +6,8 @@
 
 ## Ejecución
 
-La aplicación lee por `stdin` la ruta específica por donde tomar un archivo `.csv` que contenga los pedidos de bebidas.
+La aplicación lee por `stdin` los pedidos de bebidas. En particular, se puede pasar la ruta específica por donde tomar
+un archivo `.csv` con los pedidos.
 La idea era cambiar rápidamente de archivos, en lugar de tener que cambiar el valor de alguna constante en el código con
 la ruta del archivo en cuestión.
 
