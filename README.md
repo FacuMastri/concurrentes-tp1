@@ -2,8 +2,6 @@
 
 [Enunciado](https://concurrentes-fiuba.github.io/2C2022_tp1.html)
 
-**Alumno**: Mastricchio, Facundo Rodrigo - **Padrón**: 100874
-
 ## Ejecución
 
 La aplicación lee por `stdin` los pedidos de bebidas. En particular, se puede pasar la ruta específica por donde tomar
